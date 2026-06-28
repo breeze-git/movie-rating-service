@@ -1,48 +1,86 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-import asyncpg
 import bcrypt
-from asyncpg.exceptions import UniqueViolationError
 from fastapi import Depends
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import UsernameAlredyExistsError
+import app.database.repositories as repo
+from app.core.exceptions.services import (
+    InvalidCredentialsError,
+    UserAlreadyExistsError,
+    UsernameAlreadyExistsError,
+    UserNotFoundError,
+)
 from app.core.security import get_hash
-from app.database.database import get_session
-from app.database.repositories import add_user_to_db, get_user_from_db_by_email
-from app.schemas.auth import CreateUser, LoginUser, UserInDB
+from app.database.models import Role, User
+from app.database.session import get_session
+from app.schemas.auth import UserCreateRequest, UserLoginRequest
 
 
-async def create_user(data: CreateUser, session: asyncpg.Connection) -> None:
-    user_id = uuid4()
+class UserService:
+    def __init__(self, session: AsyncSession = Depends(get_session)):
+        self.session = session
 
-    hashed_password = get_hash(data.password).decode("utf-8")
+    async def create_new_user(self, user_data: UserCreateRequest) -> UUID:
+        existing_user = await repo.get_user_by_email(self.session, user_data.email)
 
-    user = UserInDB(
-        id=user_id,
-        username=data.username,
-        first_name=data.first_name,
-        last_name=data.last_name,
-        email=data.email,
-        hashed_password=hashed_password,
-    )
-    try:
-        await add_user_to_db(user, session)
-    except UniqueViolationError:
-        raise UsernameAlredyExistsError from None
+        if existing_user is not None:
+            raise UserAlreadyExistsError
 
+        id = uuid4()
+        hashed_password = get_hash(user_data.password).decode("utf-8")
 
-async def authenticate_user(user: LoginUser, session: asyncpg.Connection = Depends(get_session)) -> UserInDB | None:
-    data = await get_user_from_db_by_email(user.email, session)
+        default_role = await repo.get_default_role(self.session)
 
-    if data is not None:
-        user_in_db = UserInDB(**data)
+        new_user = User(
+            id=id,
+            username=user_data.username,
+            first_name=user_data.first_name,
+            last_name=user_data.last_name,
+            email=user_data.email,
+            hashed_password=hashed_password,
+            roles=[default_role],
+        )
 
-        user_pass = user.password.encode("utf-8")
-        hashed_pass = user_in_db.hashed_password.encode("utf-8")
+        try:
+            await repo.save_user(self.session, new_user)
+        except IntegrityError:
+            raise UsernameAlreadyExistsError from None
 
-        is_correct = bcrypt.checkpw(user_pass, hashed_pass)
+        return id
 
-        if is_correct:
-            return user_in_db
+    async def authenticate_user(self, user_data: UserLoginRequest) -> User:
 
-    return None
+        user = await repo.get_user_by_email(self.session, user_data.email)
+
+        if user is None:
+            raise UserNotFoundError
+
+        user_pass = user_data.password.encode("utf-8")
+        hashed_pass = user.hashed_password.encode("utf-8")
+
+        if not bcrypt.checkpw(user_pass, hashed_pass):
+            raise InvalidCredentialsError
+
+        return user
+
+    async def remove_user(self, user_id: str):
+        user = await repo.get_user_by_id(self.session, user_id)
+
+        if user:
+            await repo.remove_user(self.session, user)
+
+    async def get_user_roles(self, user_id: str) -> set:
+        roles = await repo.get_user_roles(self.session, user_id)
+
+        if not roles:
+            raise UserNotFoundError
+
+        return roles
+
+    async def get_user_permissions(self, user_id) -> set:
+
+        perms = await repo.get_user_permissions(self.session, user_id)
+
+        return perms

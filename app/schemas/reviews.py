@@ -1,30 +1,36 @@
+from datetime import datetime
+from typing import Sequence
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
-class CreateReview(BaseModel):
-    id: UUID
-    user_id: str
+class ReviewCreateRequest(BaseModel):
     message: str
 
 
-class UserFeedback(BaseModel):
-    review: str
+class ReviewResponseSchema(BaseModel):
+    id: UUID
+    user_id: UUID
+    message: str
+    created_at: datetime
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
-class ReviewsResp(BaseModel):
-    reviews: list
+class ReviewsGetResponse(BaseModel):
+    reviews: Sequence[ReviewResponseSchema]
 
 
-class CreateReviewResp(BaseModel):
+class ReviewCreateResponse(BaseModel):
     id: UUID
     message: str = "Your review successfully added"
 
 
-class ManageReviewResp(BaseModel):
+class ReviewManageResponse(BaseModel):
     message: str = "The review has been succesfully changed"
 
 
-class DeleteReviewResp(BaseModel):
+class ReviewDeleteResponse(BaseModel):
     message: str = "The review successfully deleted"

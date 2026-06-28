@@ -1,64 +1,61 @@
-from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-import asyncpg
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ReviewNotFoundError, UserNotFoundError
-from app.database.repositories import add_review_to_db, get_user_from_db_by_id
-from app.schemas.reviews import UserFeedback
-
-
-async def create_review(
-    user_id: str, feedback: UserFeedback, session: asyncpg.Connection
-) -> UUID:
-    review_id = uuid4()
-
-    user_data = await get_user_from_db_by_id(user_id, session)
-
-    if not user_data:
-        raise UserNotFoundError
-
-    review = {
-        "id": review_id,
-        "user_id": user_id,
-        "message": feedback.review,
-        "created_on": datetime.now(UTC),
-    }
-
-    await add_review_to_db(review, session)
-
-    return review_id
+import app.database.repositories as repo
+from app.core.exceptions.services import ReviewNotFoundError, UserNotFoundError
+from app.database.models import Review
+from app.database.session import get_session
+from app.schemas.reviews import ReviewCreateRequest
 
 
-async def change_review(
-    review_id: str, feedback: UserFeedback, session: asyncpg.Connection
-) -> None:
-    result = await session.fetchrow(
-        """
-        UPDATE reviews
-        SET message = $2, 
-            updated_at = $3
-        WHERE id = $1
-        RETURNING id;
-    """,
-        review_id,
-        feedback.review,
-        datetime.now(UTC),
-    )
+class ReviewService:
+    def __init__(self, session: AsyncSession = Depends(get_session)):
+        self.session = session
 
-    if result is None:
-        raise ReviewNotFoundError
+    async def create_review(
+        self, user_id: str, review_data: ReviewCreateRequest
+    ) -> UUID:
+        id = uuid4()
 
+        user = await repo.get_user_by_id(self.session, user_id)
 
-async def remove_review(review_id: str, session: asyncpg.Connection) -> None:
-    result = await session.fetchrow(
-        """
-        DELETE FROM reviews 
-        WHERE id = $1
-        RETURNING id
-    """,
-        review_id,
-    )
+        if user is None:
+            raise UserNotFoundError
 
-    if result is None:
-        raise ReviewNotFoundError
+        new_review = Review(
+            id=id,
+            user_id=user_id,
+            message=review_data.message,
+        )
+
+        await repo.save_review(self.session, new_review)
+
+        return id
+
+    async def manage_review(
+        self, review_id: str, review_data: ReviewCreateRequest
+    ) -> None:
+        review = await repo.get_review_by_id(self.session, review_id)
+
+        if review is None:
+            raise ReviewNotFoundError
+
+        await repo.manage_review(self.session, review, review_data.message)
+
+    async def remove_review(self, review_id: str) -> None:
+        review = await repo.get_review_by_id(self.session, review_id)
+
+        if review is None:
+            raise ReviewNotFoundError
+
+        await repo.remove_review(self.session, review)
+
+    async def get_review_by_id(self, review_id: str) -> Review:
+        review = await repo.get_review_by_id(self.session, review_id)
+
+        if review is None:
+            raise ReviewNotFoundError
+
+        return review

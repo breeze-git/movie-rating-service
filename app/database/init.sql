@@ -36,7 +36,8 @@ CREATE INDEX user_roles_role_id ON public.user_roles USING btree (role_id);
 
 CREATE TABLE public.permissions (
 	id serial4 NOT NULL,
-	"name" varchar(50) NULL,
+	"name" varchar(50) NOT NULL,
+	CONSTRAINT permissions_name_key UNIQUE (name),
 	CONSTRAINT permissions_pkey PRIMARY KEY (id)
 );
 
@@ -55,7 +56,7 @@ CREATE INDEX role_permissions_permission_id ON public.role_permissions USING btr
 
 CREATE TABLE public.reviews (
 	id uuid NOT NULL,
-	user_id uuid NULL,
+	user_id uuid NOT NULL,
 	message text NOT NULL,
 	created_at timestamptz NOT NULL,
 	updated_at timestamptz NULL,
@@ -73,6 +74,8 @@ INSERT INTO public.permissions(name)
 VALUES ('reviews:read'), ('reviews:create'), 
 	   ('reviews:manage'), ('reviews:delete');
 
-INSERT INTO public.role_permissions(role_id, permission_id) 
-VALUES (1, 1), (1, 2), (1, 3), (1, 4), (2, 1), (2, 2);
-	   
+INSERT INTO public.role_permissions (role_id, permission_id)
+VALUES 
+  ((SELECT id FROM roles WHERE name = 'admin'), (SELECT id FROM permissions WHERE name = 'reviews:read')),
+  ((SELECT id FROM roles WHERE name = 'admin'), (SELECT id FROM permissions WHERE name = 'reviews:create'));
+   
