@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -11,11 +9,15 @@ class UserLoginRequest(UserBaseAuth):
     email: EmailStr
 
 
-class UserCreateRequest(UserBaseAuth):
+class UserRegisterRequest(UserBaseAuth):
     username: str
     email: EmailStr
     first_name: str | None = None
     last_name: str | None = None
+
+
+class UserRegisterResponse(BaseModel):
+    message: str = "New user registered"
 
 
 class Token(BaseModel):
@@ -26,20 +28,3 @@ class TokensResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str
-
-
-class UserCreateResponse(BaseModel):
-    message: str = "New user created"
-
-
-class UserDeleteResponse(BaseModel):
-    message: str = "User deleted"
-
-
-class UserInDB(BaseModel):
-    id: UUID
-    username: str
-    first_name: str | None = None
-    last_name: str | None = None
-    email: str
-    hashed_password: str

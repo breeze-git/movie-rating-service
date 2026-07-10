@@ -7,11 +7,16 @@ from .mapping import ERROR_MAPPING
 
 async def global_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     error = ERROR_MAPPING.get(
-        type(exc), {"status_code": 500, "detail": "Internal server error"}  # type: ignore
+        type(exc),
+        {"status_code": 500, "detail": "Internal server error"},  # type: ignore
     )
 
+    code = error["status_code"]
+    detail = exc.detail if exc.detail else error["detail"]
+
     return JSONResponse(
-        status_code=error["status_code"], content={"detail": error["detail"]}
+        status_code=code,
+        content={"detail": detail},
     )
 
 

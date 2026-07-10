@@ -1,37 +1,55 @@
-from fastapi import APIRouter, Depends, Request, Security, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 
-import app.database.repositories as repo
-from app.database.session import get_session
+from fastapi import APIRouter, Depends, Request, Security, status
+
+from app.schemas.pagination import PaginationParams
 from app.schemas.reviews import (
+    PaginatedReviewDTO,
     ReviewCreateRequest,
     ReviewCreateResponse,
     ReviewDeleteResponse,
     ReviewManageResponse,
-    ReviewsGetResponse,
+    ReviewPatchRequest,
+    ReviewSort,
 )
 from app.services.reviews import ReviewService
 
-from .dependencies import IPBasedLimiter, RoleBasedLimiter, verify_permissions
+from .dependencies import (
+    IPBasedLimiter,
+    RoleBasedLimiter,
+    verify_global_permissions,
+    verify_review_permissions,
+)
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
 
 @router.get(
-    "/",
-    response_model=ReviewsGetResponse,
+    "/{movie_id}",
+    response_model=PaginatedReviewDTO,
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
 )
 async def get_reviews(
-    request: Request, session: AsyncSession = Depends(get_session)
-) -> ReviewsGetResponse:
-    reviews = await repo.get_reviews(session)
+    request: Request,
+    movie_id: UUID,
+    sort: ReviewSort = Depends(),
+    pagination: PaginationParams = Depends(),
+    review_serviece: ReviewService = Depends(),
+) -> PaginatedReviewDTO:
+    paginated_reviews = await review_serviece.get_movie_reviews(
+        movie_id,
+        sort=sort,
+        pagination=pagination,
+    )
 
-    return ReviewsGetResponse(reviews=reviews)  # type: ignore
+    paginated_reviews.limit = pagination.limit
+    paginated_reviews.offset = pagination.offset
+
+    return paginated_reviews
 
 
 @router.post(
-    "/",
+    "/{movie_id}",
     response_model=ReviewCreateResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(RoleBasedLimiter)],
@@ -39,29 +57,45 @@ async def get_reviews(
 async def post_review(
     request: Request,
     review_data: ReviewCreateRequest,
-    user_id: str = Security(verify_permissions, scopes=["reviews:create"]),
+    movie_id: UUID,
+    user_id: UUID = Security(verify_global_permissions, scopes=["reviews:create"]),
     review_service: ReviewService = Depends(),
 ) -> ReviewCreateResponse:
-
-    id = await review_service.create_review(user_id, review_data)
+    id = await review_service.create_review(movie_id, user_id, review_data)
 
     return ReviewCreateResponse(id=id)
 
 
 @router.put(
     "/{review_id}",
-    status_code=status.HTTP_201_CREATED,
     response_model=ReviewManageResponse,
     dependencies=[Depends(RoleBasedLimiter)],
 )
-async def manage_review(
+async def put_review(
     request: Request,
-    review_id: str,
+    review_id: UUID,
     review_data: ReviewCreateRequest,
-    user_id: str = Security(verify_permissions, scopes=["reviews:manage"]),
+    user_id: UUID = Security(verify_review_permissions, scopes=["reviews:manage"]),
     review_service: ReviewService = Depends(),
 ) -> ReviewManageResponse:
-    await review_service.manage_review(review_id, review_data)
+    await review_service.update_review(review_id, review_data)
+
+    return ReviewManageResponse()
+
+
+@router.patch(
+    "/{review_id}",
+    response_model=ReviewManageResponse,
+    dependencies=[Depends(RoleBasedLimiter)],
+)
+async def patch_review(
+    request: Request,
+    review_id: UUID,
+    review_data: ReviewPatchRequest,
+    user_id: UUID = Security(verify_review_permissions, scopes=["reviews:manage"]),
+    review_service: ReviewService = Depends(),
+) -> ReviewManageResponse:
+    await review_service.partial_update_review(review_id, review_data)
 
     return ReviewManageResponse()
 
@@ -73,11 +107,10 @@ async def manage_review(
 )
 async def delete_review(
     request: Request,
-    review_id: str,
-    user_id: str = Security(verify_permissions, scopes=["reviews:delete"]),
+    review_id: UUID,
+    user_id: UUID = Security(verify_review_permissions, scopes=["reviews:delete"]),
     review_service: ReviewService = Depends(),
 ) -> ReviewDeleteResponse:
-
     await review_service.remove_review(review_id)
 
     return ReviewDeleteResponse()

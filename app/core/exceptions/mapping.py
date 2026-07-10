@@ -1,30 +1,13 @@
-from .services import (
-    InvalidCredentialsError,
-    ReviewNotFoundError,
-    UserAlreadyExistsError,
-    UsernameAlreadyExistsError,
-    UserNotFoundError,
-)
+from .services import AlreadyExistsError, InvalidCredentialsError, NotFoundError
 
 ERROR_MAPPING = {
     InvalidCredentialsError: {
         "status_code": 401,
         "detail": "Authentication failed",
     },
-    UserNotFoundError: {
-        "status_code": 401,
-        "detail": "Authentication failed",
-    },
-    UserAlreadyExistsError: {
-        "status_code": 409,
-        "detail": "User already exists",
-    },
-    UsernameAlreadyExistsError: {
-        "status_code": 409,
-        "detail": "User with this username already exists",
-    },
-    ReviewNotFoundError: {
+    NotFoundError: {
         "status_code": 404,
-        "detail": "Content not found",
+        "detail": "Requested resource was not found",
     },
+    AlreadyExistsError: {"status_code": 409, "detail": "Resource already exists"},
 }

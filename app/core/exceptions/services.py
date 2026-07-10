@@ -5,21 +5,13 @@ class ServiceException(AppException):
     pass
 
 
-class UserNotFoundError(ServiceException):
+class NotFoundError(ServiceException):
+    pass
+
+
+class AlreadyExistsError(ServiceException):
     pass
 
 
 class InvalidCredentialsError(ServiceException):
-    pass
-
-
-class UserAlreadyExistsError(ServiceException):
-    pass
-
-
-class ReviewNotFoundError(ServiceException):
-    pass
-
-
-class UsernameAlreadyExistsError(ServiceException):
     pass

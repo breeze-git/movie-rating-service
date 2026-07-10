@@ -1,39 +1,37 @@
 from secrets import compare_digest
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.security import create_tokens_pair
 from app.database.storage import REFRESH_TOKENS
 from app.schemas.auth import (
     Token,
     TokensResponse,
-    UserCreateRequest,
-    UserCreateResponse,
-    UserDeleteResponse,
-    UserLoginRequest,
+    UserRegisterRequest,
+    UserRegisterResponse,
 )
-from app.services.auth import UserService
+from app.services.users import UserService
 
-from .dependencies import IPBasedLimiter, decode_token_safely, get_current_user_claims
+from .dependencies import IPBasedLimiter, decode_token_safely, verify_claims
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post(
     "/register",
-    response_model=UserCreateResponse,
+    response_model=UserRegisterResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
 )
 async def register_user(
     request: Request,
-    user_data: UserCreateRequest,
+    user_data: UserRegisterRequest,
     user_service: UserService = Depends(),
-) -> UserCreateResponse:
+) -> UserRegisterResponse:
+    await user_service.register_user(user_data)
 
-    await user_service.create_new_user(user_data)
-
-    return UserCreateResponse()
+    return UserRegisterResponse()
 
 
 @router.post(
@@ -43,15 +41,14 @@ async def register_user(
 )
 async def login_user(
     request: Request,
-    user_data: UserLoginRequest,
+    form_data: OAuth2PasswordRequestForm = Depends(),
     user_service: UserService = Depends(),
 ) -> TokensResponse:
+    user = await user_service.authenticate_user(email=form_data.username, password=form_data.password)
 
-    user = await user_service.authenticate_user(user_data)
+    tokens_data = create_tokens_pair(user.id)
 
-    response_data = create_tokens_pair(user.id)
-
-    return TokensResponse(**response_data)
+    return TokensResponse(**tokens_data)
 
 
 @router.post(
@@ -62,40 +59,15 @@ async def login_user(
 async def refresh_token(request: Request, token: Token) -> TokensResponse:
     payload = decode_token_safely(token.refresh_token)
 
-    user_id = payload.get("sub")
-    token_type = payload.get("type")
+    verify_claims(payload, req_token_type="refresh")
 
-    if user_id is not None and token_type == "refresh":
-        user_token = REFRESH_TOKENS.get(user_id)
+    user_id = payload["sub"]
 
-        if user_token is not None and compare_digest(user_token, token.refresh_token):
-            response_data = create_tokens_pair(user_id)
+    user_token = REFRESH_TOKENS.get(user_id)
 
-            return TokensResponse(**response_data)
+    if user_token is None or not compare_digest(user_token, token.refresh_token):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from None
 
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-    ) from None
+    response_data = create_tokens_pair(user_id)
 
-
-@router.delete(
-    "/delete",
-    response_model=UserDeleteResponse,
-    dependencies=[Depends(IPBasedLimiter("5/minute"))],
-)
-async def delete_user(
-    request: Request,
-    payload: dict = Depends(get_current_user_claims),
-    user_service: UserService = Depends(),
-) -> UserDeleteResponse:
-    user_id = payload.get("sub")
-    token_type = payload.get("type")
-
-    if user_id is None or token_type != "access":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        ) from None
-
-    await user_service.remove_user(user_id)
-
-    return UserDeleteResponse()
+    return TokensResponse(**response_data)

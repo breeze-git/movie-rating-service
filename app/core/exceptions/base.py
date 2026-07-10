@@ -1,2 +1,3 @@
 class AppException(Exception):
-    pass
+    def __init__(self, detail: str | None = None):
+        self.detail = detail
