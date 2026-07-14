@@ -96,7 +96,7 @@ class UserService:
         return perms
 
     async def update_user(self, user_id: UUID, user_data) -> None:
-        user = await self.users.get_buy_id(user_id)
+        user = await self.users.get_by_id(user_id)
 
         if user is None:
             raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None
@@ -111,7 +111,7 @@ class UserService:
         await self.session.commit()
 
     async def partial_update_user(self, user_id: UUID, user_data) -> None:
-        user = await self.users.get_buy_id(user_id)
+        user = await self.users.get_by_id(user_id)
 
         if user is None:
             raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None

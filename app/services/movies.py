@@ -1,26 +1,28 @@
 from collections.abc import Sequence
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy.engine.row import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions.error_messages import MovieMessages
+from app.core.exceptions.error_messages import DirectorMessages, MovieMessages
 from app.core.exceptions.repositories import (
     EntityAlreadyExistsError,
     EntityNotFoundError,
 )
 from app.core.exceptions.services import AlreadyExistsError, NotFoundError
 from app.database.models import Country, Genre, Movie
+from app.database.repositories.director import DirectorRepository
 from app.database.repositories.movie import MovieRepository
 from app.database.session import get_session
+from app.schemas.common import CollectionEnvelope
 from app.schemas.movies import (
-    MovieAddRequest,
-    MovieDTO,
-    MovieFilter,
-    MoviePatchRequest,
-    MovieSort,
-    PaginatedMovieDTO,
+    CountryBase,
+    GenreBase,
+    MovieDetail,
+    MovieFilterCriteria,
+    MoviePayload,
+    MovieSortCriteria,
+    MovieUpdate,
 )
 from app.schemas.pagination import PaginationParams
 
@@ -29,8 +31,9 @@ class MovieService:
     def __init__(self, session: AsyncSession = Depends(get_session)):
         self.session = session
         self.movies = MovieRepository(session)
+        self.directors = DirectorRepository(session)
 
-    async def _get_validated_countries(self, countries_ids: list[int]) -> Sequence[Country]:
+    async def _get_validated_countries(self, countries_ids: Sequence[int]) -> Sequence[Country]:
         if not countries_ids:
             return []
 
@@ -41,7 +44,7 @@ class MovieService:
 
         return countries
 
-    async def _get_validated_genres(self, genres_ids: list[int]) -> Sequence[Genre]:
+    async def _get_validated_genres(self, genres_ids: Sequence[int]) -> Sequence[Genre]:
         if not genres_ids:
             return []
 
@@ -54,102 +57,90 @@ class MovieService:
 
     async def get_movies(
         self,
-        filters: MovieFilter,
-        sort: MovieSort,
+        filters: MovieFilterCriteria,
+        sort: MovieSortCriteria,
         pagination: PaginationParams,
-    ) -> PaginatedMovieDTO:
-        movies, total = await self.movies.get_movies(
+    ) -> CollectionEnvelope:
+        movie_collection = await self.movies.get_movies(
             **filters.model_dump(),
             **sort.model_dump(),
             **pagination.model_dump(),
         )
 
-        movie_dtos = [MovieDTO.model_validate(row) for row in movies]
+        return movie_collection
 
-        return PaginatedMovieDTO(items=movie_dtos, total=total)
+    async def get_movie_by_id(self, movie_id: UUID) -> MovieDetail:
+        db_movie = await self.movies.get_by_id_with_relations(movie_id)
 
-    async def get_movie_by_id(self, movie_id: UUID):
-        movie = await self.movies.get_by_id_with_relations(movie_id)
-
-        if movie is None:
+        if db_movie is None:
             raise NotFoundError(detail=MovieMessages.not_found(movie_id=movie_id)) from None
+
+        movie = MovieDetail.model_validate(db_movie)
 
         return movie
 
-    async def post_movie(self, movie_data: MovieAddRequest) -> UUID:
-        id = uuid4()
+    async def post_movie(self, payload: MoviePayload) -> MovieDetail:
+        db_director = await self.directors.get_by_id(payload.director_id)
 
-        countries = await self._get_validated_countries(movie_data.countries)
-        genres = await self._get_validated_genres(movie_data.genres)
+        if db_director is None:
+            raise NotFoundError(DirectorMessages.not_found(director_id=payload.director_id)) from None
 
-        movie = Movie(
-            id=id,
-            director_id=movie_data.director_id,
-            title=movie_data.title,
-            description=movie_data.description,
-            release_year=movie_data.release_year,
-            countries=countries,
+        genres = await self._get_validated_genres(payload.genre_ids)
+        countries = await self._get_validated_countries(payload.country_ids)
+
+        db_movie = Movie(
+            **payload.model_dump(exclude={"country_ids", "genre_ids"}),
             genres=genres,
+            countries=countries,
         )
 
         try:
-            await self.movies.save(movie)
+            await self.movies.save(db_movie)
         except EntityAlreadyExistsError:
             raise AlreadyExistsError(detail=MovieMessages.already_exists()) from None
 
         await self.session.commit()
 
-        return id
+        movie = MovieDetail.model_validate(db_movie)
 
-    async def update_movie(self, movie_id: UUID, movie_data: MovieAddRequest) -> None:
-        movie = await self.movies.get_by_id_with_relations(movie_id)
+        return movie
 
-        if movie is None:
-            raise NotFoundError(detail=MovieMessages.not_found(movie_id=movie_id)) from None
+    async def update_movie(self, movie_id: UUID, payload: MovieUpdate) -> MovieDetail:
+        if payload.director_id:
+            db_director = await self.directors.get_by_id(payload.director_id)
 
-        countries = await self._get_validated_countries(movie_data.countries)
-        genres = await self._get_validated_genres(movie_data.genres)
+            if db_director is None:
+                raise NotFoundError(DirectorMessages.not_found(director_id=payload.director_id)) from None
 
-        movie_data_dict = movie_data.model_dump()
-
-        movie_data_dict["countries"] = countries
-        movie_data_dict["genres"] = genres
-
-        try:
-            await self.movies.update(movie, movie_data_dict)
-        except EntityAlreadyExistsError:
-            raise AlreadyExistsError(detail=MovieMessages.already_exists()) from None
-
-        await self.session.commit()
-
-    async def partial_update_movie(self, movie_id: UUID, movie_data: MoviePatchRequest) -> None:
-        if movie_data.countries or movie_data.genres:
-            movie = await self.movies.get_by_id_with_relations(movie_id)
+        if payload.country_ids or payload.genre_ids:
+            db_movie = await self.movies.get_by_id_with_relations(movie_id)
         else:
-            movie = await self.movies.get_by_id(movie_id)
+            db_movie = await self.movies.get_by_id(movie_id)
 
-        if movie is None:
+        if db_movie is None:
             raise NotFoundError(detail=MovieMessages.not_found(movie_id=movie_id)) from None
 
-        movie_data_dict = movie_data.model_dump(exclude_unset=True)
+        movie_data = payload.model_dump(exclude_unset=True, exclude={"country_ids", "genre_ids"})
 
-        if movie_data.countries:
-            movie_data_dict["countries"] = await self._get_validated_countries(
-                movie_data.countries,
-            )
-        if movie_data.genres:
-            movie_data_dict["genres"] = await self._get_validated_genres(
-                movie_data.genres,
+        if payload.country_ids:
+            movie_data["countries"] = await self._get_validated_countries(payload.country_ids)
+        if payload.genre_ids:
+            movie_data["genres"] = await self._get_validated_genres(
+                payload.genre_ids,
             )
 
         try:
-            await self.movies.update(movie, movie_data_dict)
+            await self.movies.update(db_movie, movie_data)
         except EntityAlreadyExistsError:
             raise AlreadyExistsError(detail=MovieMessages.already_exists()) from None
 
         await self.session.commit()
 
-    async def remove_movie(self, movie_id: UUID):
+        movie = MovieDetail.model_validate(db_movie)
+
+        return movie
+
+    async def remove_movie(self, movie_id: UUID) -> None:
         try:
             await self.movies.delete_movie(movie_id)
         except EntityNotFoundError:
@@ -157,12 +148,12 @@ class MovieService:
 
         await self.session.commit()
 
-    async def get_all_genres(self) -> Sequence[RowMapping]:
+    async def get_all_genres(self) -> list[GenreBase]:
         genres = await self.movies.get_all_genres()
 
         return genres
 
-    async def get_all_countries(self) -> Sequence[RowMapping]:
+    async def get_all_countries(self) -> list[CountryBase]:
         countries = await self.movies.get_all_countries()
 
         return countries

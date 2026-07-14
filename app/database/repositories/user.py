@@ -19,7 +19,7 @@ class UserRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_buy_id(self, id: UUID) -> User | None:
+    async def get_by_id(self, id: UUID) -> User | None:
         query = select(User).where(User.id == id)
 
         user = await self.session.scalar(query)

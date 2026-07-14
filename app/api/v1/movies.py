@@ -3,18 +3,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Security, status
 
+from app.schemas.common import CollectionEnvelope, ResponseEnvelope
 from app.schemas.movies import (
-    CountriesGetResponse,
-    GenresGetResponse,
-    MovieAddRequest,
-    MovieAddResponse,
-    MovieDeleteResponse,
-    MovieFilter,
-    MovieGetResponse,
-    MovieManageResponse,
-    MoviePatchRequest,
-    MovieSort,
-    PaginatedMovieDTO,
+    CountryBase,
+    GenreBase,
+    MovieBrief,
+    MovieDetail,
+    MovieFilterCriteria,
+    MoviePayload,
+    MovieSortCriteria,
+    MovieUpdate,
 )
 from app.schemas.pagination import PaginationParams
 from app.services.movies import MovieService
@@ -26,133 +24,116 @@ router = APIRouter(prefix="/movies", tags=["Movies"])
 
 @router.get(
     "/genres",
-    response_model=GenresGetResponse,
+    response_model=ResponseEnvelope[list[GenreBase]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
 )
 async def get_genres(
     request: Request,
     movie_service: MovieService = Depends(),
-) -> GenresGetResponse:
+) -> ResponseEnvelope:
     genres = await movie_service.get_all_genres()
 
-    return GenresGetResponse.model_validate(genres)
+    return ResponseEnvelope(data=genres)
 
 
 @router.get(
     "/countries",
-    response_model=CountriesGetResponse,
+    response_model=ResponseEnvelope[list[CountryBase]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
 )
 async def get_countries(
     request: Request,
     movie_service: MovieService = Depends(),
-) -> CountriesGetResponse:
+) -> ResponseEnvelope:
     countries = await movie_service.get_all_countries()
 
-    return CountriesGetResponse.model_validate(countries)
+    return ResponseEnvelope(data=countries)
 
 
 @router.get(
     "",
-    response_model=PaginatedMovieDTO,
+    response_model=ResponseEnvelope[CollectionEnvelope[MovieBrief]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
 )
 async def get_movies(
     request: Request,
-    countries: Sequence[int] | None = Query(default=None),
-    genres: Sequence[int] | None = Query(default=None),
-    directors: Sequence[UUID] | None = Query(default=None),
-    sort: MovieSort = Depends(),
+    country_ids: Sequence[int] | None = Query(default=None),
+    genre_ids: Sequence[int] | None = Query(default=None),
+    director_ids: Sequence[UUID] | None = Query(default=None),
+    sort: MovieSortCriteria = Depends(),
     movie_service: MovieService = Depends(),
     pagination: PaginationParams = Depends(),
-) -> PaginatedMovieDTO:
-    filters = MovieFilter(
-        countries=countries,
-        genres=genres,
-        directors=directors,
+) -> ResponseEnvelope:
+    filters = MovieFilterCriteria(
+        country_ids=country_ids,
+        genre_ids=genre_ids,
+        director_ids=director_ids,
     )
 
-    paginated_movies = await movie_service.get_movies(
+    movie_collection = await movie_service.get_movies(
         filters=filters,
         sort=sort,
         pagination=pagination,
     )
 
-    paginated_movies.limit = pagination.limit
-    paginated_movies.offset = pagination.offset
+    movie_collection.limit = pagination.limit
+    movie_collection.offset = pagination.offset
 
-    return paginated_movies
+    return ResponseEnvelope(data=movie_collection)
 
 
 @router.get(
     "/{movie_id}",
-    response_model=MovieGetResponse,
+    response_model=ResponseEnvelope[MovieDetail],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
 )
 async def get_movie(
     request: Request,
     movie_id: UUID,
     movie_service: MovieService = Depends(),
-):
+) -> ResponseEnvelope:
     movie = await movie_service.get_movie_by_id(movie_id)
 
-    return MovieGetResponse.model_validate(movie)
+    return ResponseEnvelope(data=movie)
 
 
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
-    response_model=MovieAddResponse,
+    response_model=ResponseEnvelope[MovieDetail],
     dependencies=[Depends(RoleBasedLimiter)],
 )
 async def post_movie(
     request: Request,
-    movie_data: MovieAddRequest,
+    movie_data: MoviePayload,
     user_id: UUID = Security(verify_global_permissions, scopes=["movies:post"]),
     movie_service: MovieService = Depends(),
-) -> MovieAddResponse:
-    movie_id = await movie_service.post_movie(movie_data)
+) -> ResponseEnvelope:
+    movie = await movie_service.post_movie(movie_data)
 
-    return MovieAddResponse(id=movie_id)
-
-
-@router.put(
-    "/{movie_id}",
-    response_model=MovieManageResponse,
-    dependencies=[Depends(RoleBasedLimiter)],
-)
-async def put_movie(
-    request: Request,
-    movie_id: UUID,
-    movie_data: MovieAddRequest,
-    user_id: UUID = Security(verify_global_permissions, scopes=["movies:manage"]),
-    movie_service: MovieService = Depends(),
-) -> MovieManageResponse:
-    await movie_service.update_movie(movie_id, movie_data)
-
-    return MovieManageResponse()
+    return ResponseEnvelope(data=movie)
 
 
 @router.patch(
     "/{movie_id}",
-    response_model=MovieManageResponse,
+    response_model=ResponseEnvelope[MovieDetail],
     dependencies=[Depends(RoleBasedLimiter)],
 )
 async def patch_movie(
     request: Request,
     movie_id: UUID,
-    movie_data: MoviePatchRequest,
+    movie_data: MovieUpdate,
     user_id: UUID = Security(verify_global_permissions, scopes=["movies:manage"]),
     movie_service: MovieService = Depends(),
-) -> MovieManageResponse:
-    await movie_service.partial_update_movie(movie_id, movie_data)
+) -> ResponseEnvelope:
+    movie = await movie_service.update_movie(movie_id, movie_data)
 
-    return MovieManageResponse()
+    return ResponseEnvelope(data=movie)
 
 
 @router.delete(
     "/{movie_id}",
-    response_model=MovieDeleteResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(RoleBasedLimiter)],
 )
 async def delete_movie(
@@ -160,7 +141,5 @@ async def delete_movie(
     movie_id: UUID,
     user_id: UUID = Security(verify_global_permissions, scopes=["movies:delete"]),
     movie_service: MovieService = Depends(),
-) -> MovieDeleteResponse:
+) -> None:
     await movie_service.remove_movie(movie_id)
-
-    return MovieDeleteResponse()

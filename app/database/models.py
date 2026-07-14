@@ -21,7 +21,7 @@ class Base(DeclarativeBase):
 class Movie(Base):
     __tablename__ = "movies"
 
-    id: Mapped[UUID] = mapped_column(primary_key=True)
+    id: Mapped[UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     director_id: Mapped[UUID] = mapped_column(ForeignKey("directors.id", ondelete="CASCADE"), index=True)
     title: Mapped[str] = mapped_column(String(50))
     description: Mapped[str] = mapped_column(Text)
@@ -54,7 +54,7 @@ class Movie(Base):
 class Director(Base):
     __tablename__ = "directors"
 
-    id: Mapped[UUID] = mapped_column(primary_key=True)
+    id: Mapped[UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     first_name: Mapped[str] = mapped_column(String(50))
     last_name: Mapped[str] = mapped_column(String(50))
     date_of_birth: Mapped[date]
@@ -118,7 +118,7 @@ class GenreMovies(Base):
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[UUID] = mapped_column(primary_key=True)
+    id: Mapped[UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     username: Mapped[str] = mapped_column(String(50), unique=True)
     first_name: Mapped[str | None] = mapped_column(String(50))
     last_name: Mapped[str | None] = mapped_column(String(50))
@@ -132,7 +132,7 @@ class User(Base):
 class Review(Base):
     __tablename__ = "reviews"
 
-    id: Mapped[UUID] = mapped_column(primary_key=True)
+    id: Mapped[UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     movie_id: Mapped[UUID] = mapped_column(ForeignKey("movies.id", ondelete="CASCADE"), index=True)
     message: Mapped[str] = mapped_column(Text)

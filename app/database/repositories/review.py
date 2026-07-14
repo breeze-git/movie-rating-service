@@ -28,7 +28,7 @@ class ReviewRepository:
         limit: int = 10,
         offset: int = 0,
     ) -> tuple[Sequence[RowMapping], int]:
-        movie = self.session.get(Movie, id)
+        movie = await self.session.get(Movie, id)
 
         if movie is None:
             raise EntityNotFoundError from None

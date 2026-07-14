@@ -1,4 +1,5 @@
-from collections.abc import Sequence
+from collections.abc import Mapping
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -11,6 +12,7 @@ from app.core.exceptions.repositories import (
     EntityNotFoundError,
 )
 from app.database.models import Director
+from app.schemas.common import DirectorBrief
 
 from .pg_error_codes import PostgresErrorCode as pg_err
 
@@ -26,13 +28,22 @@ class DirectorRepository:
 
         return director
 
-    async def get_directors(self, name_search: str | None) -> Sequence[Director]:
+    async def get_directors(self, name_search: str | None) -> list[DirectorBrief]:
         if name_search:
-            query = select(Director).where((Director.first_name + " " + Director.last_name).like(f"%{name_search}%"))
+            query = select(
+                Director.id,
+                Director.first_name,
+                Director.last_name,
+                Director.date_of_birth,
+            ).where((Director.first_name + " " + Director.last_name).ilike(f"%{name_search}%"))
 
-        result = await self.session.scalars(query)
+        result = await self.session.execute(query)
 
-        return result.all()
+        rows = result.mappings().all()
+
+        directors = [DirectorBrief.model_validate(row) for row in rows]
+
+        return directors
 
     async def get_by_id_with_relations(self, id: UUID) -> Director | None:
         query = select(Director).where(Director.id == id).options(selectinload(Director.movies))
@@ -52,8 +63,8 @@ class DirectorRepository:
             if sqlstate == pg_err.UNIQUE_VIOLATION:
                 raise EntityAlreadyExistsError from None
 
-    async def update(self, director: Director, director_data_dict: dict):
-        for key, value in director_data_dict.items():
+    async def update(self, director: Director, director_data: Mapping[str, Any]):
+        for key, value in director_data.items():
             setattr(director, key, value)
 
         try:
@@ -65,9 +76,9 @@ class DirectorRepository:
                 raise EntityAlreadyExistsError from None
 
     async def delete(self, id: UUID) -> None:
-        stmt = delete(Director).where(Director.id == id)
+        stmt = delete(Director).where(Director.id == id).returning(Director.id)
 
         result = await self.session.execute(stmt)
 
-        if not result.rowcount:  # type: ignore
+        if not result.scalar():
             raise EntityNotFoundError from None

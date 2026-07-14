@@ -8,7 +8,7 @@ from app.database.storage import REFRESH_TOKENS
 
 from .settings import settings
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 1
+ACCESS_TOKEN_EXPIRE_MINUTES = 10
 REFRESH_TOKEN_EXPIRE_MINUTES = 3
 
 
