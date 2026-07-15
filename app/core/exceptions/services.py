@@ -15,3 +15,11 @@ class AlreadyExistsError(ServiceException):
 
 class InvalidCredentialsError(ServiceException):
     pass
+
+
+class InvalidDataError(ServiceException):
+    pass
+
+
+class UnexpectedServiceError(ServiceException):
+    pass

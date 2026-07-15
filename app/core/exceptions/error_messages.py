@@ -18,6 +18,10 @@ class MovieMessages:
     def countries_not_found():
         return "One or more of the specified countries could not be found"
 
+    @staticmethod
+    def invalid_data(field: str):
+        return f"Invalid {field} value"
+
 
 class ReviewMessages:
     @staticmethod
@@ -37,6 +41,10 @@ class DirectorMessages:
     @staticmethod
     def already_exists():
         return "Director with the same name and date of birth already exists"
+
+    @staticmethod
+    def invalid_data(field: str):
+        return f"Invalid {field} value"
 
 
 class UserMessages:

@@ -62,7 +62,10 @@ class Director(Base):
     movies: Mapped[list["Movie"]] = relationship(back_populates="director")
 
     __table_args__ = (
-        CheckConstraint("EXTRACT(YEAR FROM AGE(date_of_birth)) > 7", name="check_min_director_age"),
+        CheckConstraint(
+            "EXTRACT(YEAR FROM AGE(date_of_birth)) > 7",
+            name="check_min_director_age",
+        ),
         UniqueConstraint(
             "first_name",
             "last_name",

@@ -1,24 +1,17 @@
-from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import RowMapping, delete, func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 
-from app.core.exceptions.repositories import (
-    EntityAlreadyExistsError,
-    EntityNotFoundError,
-)
 from app.database.models import Movie, Review
-from app.schemas.reviews import ReviewSortBy
+from app.schemas.common import CollectionEnvelope
+from app.schemas.reviews import ReviewDTO, ReviewSortBy
 
-from .pg_error_codes import PostgresErrorCode as pg_err
+from .base import BaseRepository
 
 
-class ReviewRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+class ReviewRepository(BaseRepository):
+    model = Review
 
     async def get_movie_reviews(
         self,
@@ -27,11 +20,11 @@ class ReviewRepository:
         sort_desc: bool = False,
         limit: int = 10,
         offset: int = 0,
-    ) -> tuple[Sequence[RowMapping], int]:
+    ) -> CollectionEnvelope | None:
         movie = await self.session.get(Movie, id)
 
         if movie is None:
-            raise EntityNotFoundError from None
+            return
 
         query = select(
             Review.id,
@@ -57,27 +50,16 @@ class ReviewRepository:
 
         result = await self.session.execute(query)
 
-        reviews = result.mappings().all()
+        rows = result.mappings().all()
 
-        return reviews, total
+        reviews = [ReviewDTO.model_validate(row) for row in rows]
 
-    async def get_by_id(self, id: UUID) -> Review | None:
-        review = await self.session.get(Review, id)
+        collection = CollectionEnvelope(
+            items=reviews,
+            total=total,
+        )
 
-        return review
-
-    async def save(self, review: Review) -> None:
-        self.session.add(review)
-
-        try:
-            await self.session.flush()
-        except IntegrityError as e:
-            sqlstate = getattr(e.orig, "sqlstate", None)
-
-            if sqlstate == pg_err.FOREIGN_KEY_VIOLATION:
-                raise EntityNotFoundError from None
-            if sqlstate == pg_err.UNIQUE_VIOLATION:
-                raise EntityAlreadyExistsError from None
+        return collection
 
     async def update(self, review: Review, review_data_dict: dict) -> None:
         for key, value in review_data_dict.items():
@@ -85,10 +67,4 @@ class ReviewRepository:
 
         review.updated_at = datetime.now()
 
-    async def delete(self, review_id: UUID) -> None:
-        stmt = delete(Review).where(Review.id == review_id)
-
-        result = await self.session.execute(stmt)
-
-        if not result.rowcount:  # type: ignore
-            raise EntityNotFoundError from None
+        await self._flush()

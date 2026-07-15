@@ -2,26 +2,19 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.engine.row import RowMapping
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.exceptions.repositories import (
-    EntityAlreadyExistsError,
-    EntityNotFoundError,
-)
 from app.database.models import Country, Director, Genre, Movie, Review
 from app.schemas.common import CollectionEnvelope, DirectorBrief
 from app.schemas.movies import CountryBase, GenreBase, MovieBrief, MovieSortBy
 
-from .pg_error_codes import PostgresErrorCode as pg_err
+from .base import BaseRepository
 
 
-class MovieRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+class MovieRepository(BaseRepository):
+    model = Movie
 
     def _build_movie_brief_from_row(self, row: RowMapping) -> MovieBrief:
         return MovieBrief(
@@ -55,7 +48,7 @@ class MovieRepository:
             Movie.director_id,
             Director.first_name.label("director_first_name"),
             Director.last_name.label("director_last_name"),
-            Director.date_of_birth.labe("director_date_of_birth"),
+            Director.date_of_birth.label("director_date_of_birth"),
         ).join(Director, Director.id == Movie.director_id)
 
         if genre_ids:
@@ -92,13 +85,6 @@ class MovieRepository:
 
         return collection
 
-    async def get_by_id(self, id: UUID) -> Movie | None:
-        query = select(Movie).where(Movie.id == id)
-
-        movie = await self.session.scalar(query)
-
-        return movie
-
     async def get_by_id_with_relations(self, id: UUID) -> Movie | None:
         query = (
             select(Movie)
@@ -110,7 +96,9 @@ class MovieRepository:
             )
         )
 
-        movie = await self.session.scalar(query)
+        result = await self._execute(query)
+
+        movie = result.scalar()
 
         return movie
 
@@ -119,44 +107,25 @@ class MovieRepository:
 
         stmt = update(Movie).where(Movie.id == id).values(rating=subquery)
 
-        await self.session.execute(stmt)
+        await self._execute(stmt)
 
-    async def save(
+    async def update(
         self,
         movie: Movie,
+        movie_data: Mapping[str, Any],
+        genres: Sequence[Genre] | None = None,
+        countries: Sequence[Country] | None = None,
     ) -> None:
-        self.session.add(movie)
-
-        try:
-            await self.session.flush()
-        except IntegrityError as e:
-            sqlstate = getattr(e.orig, "sqlstate", None)
-
-            if sqlstate == pg_err.UNIQUE_VIOLATION:
-                raise EntityAlreadyExistsError from None
-
-            if sqlstate == pg_err.FOREIGN_KEY_VIOLATION:
-                raise EntityAlreadyExistsError from None
-
-    async def update(self, movie: Movie, movie_data: Mapping[str, Any]) -> None:
         for key, value in movie_data.items():
             setattr(movie, key, value)
 
-        try:
-            await self.session.flush()
-        except IntegrityError as e:
-            sqlstate = getattr(e.orig, "sqlstate", None)
+        if genres is not None:
+            movie.genres = list(genres)
 
-            if sqlstate == pg_err.UNIQUE_VIOLATION:
-                raise EntityAlreadyExistsError from None
+        if countries is not None:
+            movie.countries = list(countries)
 
-    async def delete_movie(self, id: UUID) -> None:
-        stmt = delete(Movie).where(Movie.id == id).returning(Movie.id)
-
-        result = await self.session.execute(stmt)
-
-        if not result.scalar():
-            raise EntityNotFoundError from None
+        await self._flush()
 
     async def get_countries_by_id(self, countries_ids: Sequence[int]) -> Sequence[Country]:
         query = select(Country).where(Country.id.in_(countries_ids))

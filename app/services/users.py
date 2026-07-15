@@ -6,10 +6,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions.error_messages import UserMessages
-from app.core.exceptions.repositories import (
-    EntityAlreadyExistsError,
-    EntityNotFoundError,
-)
+from app.core.exceptions.repositories import RepositoryException
 from app.core.exceptions.services import (
     AlreadyExistsError,
     InvalidCredentialsError,
@@ -20,12 +17,19 @@ from app.database.models import User
 from app.database.repositories.user import UserRepository
 from app.database.session import get_session
 from app.schemas.auth import UserRegisterRequest
+from app.schemas.users import UserPatchRequest
+
+from .base import BaseService
+from .integrity_maps import USER_INTEGRITY_MAP
 
 
-class UserService:
+class UserService(BaseService):
+    _integrity_map = USER_INTEGRITY_MAP
+
     def __init__(self, session: AsyncSession = Depends(get_session)):
-        self.session = session
         self.users = UserRepository(session)
+
+        super().__init__(session)
 
     async def get_user(self, user_id: UUID):
         user = await self.users.get_by_id_with_relations(user_id)
@@ -56,11 +60,7 @@ class UserService:
             roles=default_roles,
         )
 
-        try:
-            await self.users.save(new_user)
-        except EntityAlreadyExistsError:
-            raise AlreadyExistsError(UserMessages.already_exists(username=user_data.username)) from None
-
+        await self.users.save(new_user)
         await self.session.commit()
 
         return id
@@ -95,22 +95,7 @@ class UserService:
 
         return perms
 
-    async def update_user(self, user_id: UUID, user_data) -> None:
-        user = await self.users.get_by_id(user_id)
-
-        if user is None:
-            raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None
-
-        user_data_dict = user_data.model_dump()
-
-        try:
-            await self.users.update(user, user_data_dict)
-        except EntityAlreadyExistsError:
-            raise AlreadyExistsError(detail=UserMessages.already_exists(username=user_data.username)) from None
-
-        await self.session.commit()
-
-    async def partial_update_user(self, user_id: UUID, user_data) -> None:
+    async def update_user(self, user_id: UUID, user_data: UserPatchRequest) -> None:
         user = await self.users.get_by_id(user_id)
 
         if user is None:
@@ -120,15 +105,15 @@ class UserService:
 
         try:
             await self.users.update(user, user_data_dict)
-        except EntityAlreadyExistsError:
-            raise AlreadyExistsError(detail=UserMessages.already_exists(username=user_data.username)) from None
+        except RepositoryException as e:
+            raise self._handle_repo_error(exc=e, user_id=user_id, **user_data_dict) from None
 
         await self.session.commit()
 
     async def remove_user(self, user_id: UUID) -> None:
-        try:
-            await self.users.delete(user_id)
-        except EntityNotFoundError:
-            raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None
+        result = await self.users.delete(user_id)
+
+        if not result.scalar():
+            raise NotFoundError(UserMessages.not_found(user_id=user_id)) from None
 
         await self.session.commit()

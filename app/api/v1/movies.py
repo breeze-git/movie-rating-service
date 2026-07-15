@@ -109,7 +109,7 @@ async def post_movie(
     user_id: UUID = Security(verify_global_permissions, scopes=["movies:post"]),
     movie_service: MovieService = Depends(),
 ) -> ResponseEnvelope:
-    movie = await movie_service.post_movie(movie_data)
+    movie = await movie_service.create_movie(movie_data)
 
     return ResponseEnvelope(data=movie)
 

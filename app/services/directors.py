@@ -4,22 +4,25 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions.error_messages import DirectorMessages
-from app.core.exceptions.repositories import (
-    EntityAlreadyExistsError,
-    EntityNotFoundError,
-)
-from app.core.exceptions.services import AlreadyExistsError, NotFoundError
+from app.core.exceptions.repositories import RepositoryException
+from app.core.exceptions.services import NotFoundError
 from app.database.models import Director
 from app.database.repositories.director import DirectorRepository
 from app.database.session import get_session
 from app.schemas.common import DirectorBrief
 from app.schemas.directors import DirectorBase, DirectorDetail, DirectorUpdate
 
+from .base import BaseService
+from .integrity_maps import DIRECTOR_INTEGRITY_MAP
 
-class DirectorService:
+
+class DirectorService(BaseService):
+    _integrity_map = DIRECTOR_INTEGRITY_MAP
+
     def __init__(self, session: AsyncSession = Depends(get_session)):
-        self.session = session
         self.directors = DirectorRepository(session)
+
+        super().__init__(session)
 
     async def get_director_by_id(self, director_id: UUID) -> DirectorDetail:
         db_director = await self.directors.get_by_id_with_relations(director_id)
@@ -41,8 +44,8 @@ class DirectorService:
 
         try:
             await self.directors.save(db_director)
-        except EntityAlreadyExistsError:
-            raise AlreadyExistsError(detail=DirectorMessages.already_exists()) from None
+        except RepositoryException as e:
+            raise self._handle_repo_error(exc=e, **payload.model_dump()) from None
 
         await self.session.commit()
 
@@ -60,8 +63,8 @@ class DirectorService:
 
         try:
             await self.directors.update(db_director, director_data)
-        except EntityAlreadyExistsError:
-            raise AlreadyExistsError(detail=DirectorMessages.already_exists()) from None
+        except RepositoryException as e:
+            raise self._handle_repo_error(exc=e, director_id=director_id, **payload.model_dump()) from None
 
         await self.session.commit()
 
@@ -70,9 +73,9 @@ class DirectorService:
         return director
 
     async def remove_director(self, director_id: UUID) -> None:
-        try:
-            await self.directors.delete(director_id)
-        except EntityNotFoundError:
+        result = await self.directors.delete(director_id)
+
+        if not result.scalar():
             raise NotFoundError(detail=DirectorMessages.not_found(director_id=director_id)) from None
 
         await self.session.commit()

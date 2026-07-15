@@ -2,9 +2,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Security, status
 
+from app.schemas.common import CollectionEnvelope, ResponseEnvelope
 from app.schemas.pagination import PaginationParams
 from app.schemas.reviews import (
-    PaginatedReviewDTO,
     ReviewCreateRequest,
     ReviewCreateResponse,
     ReviewDeleteResponse,
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
 @router.get(
     "/{movie_id}",
-    response_model=PaginatedReviewDTO,
+    response_model=ResponseEnvelope[CollectionEnvelope],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
 )
 async def get_reviews(
@@ -35,17 +35,17 @@ async def get_reviews(
     sort: ReviewSort = Depends(),
     pagination: PaginationParams = Depends(),
     review_serviece: ReviewService = Depends(),
-) -> PaginatedReviewDTO:
-    paginated_reviews = await review_serviece.get_movie_reviews(
+) -> ResponseEnvelope:
+    review_collection = await review_serviece.get_movie_reviews(
         movie_id,
         sort=sort,
         pagination=pagination,
     )
 
-    paginated_reviews.limit = pagination.limit
-    paginated_reviews.offset = pagination.offset
+    review_collection.limit = pagination.limit
+    review_collection.offset = pagination.offset
 
-    return paginated_reviews
+    return ResponseEnvelope(data=review_collection)
 
 
 @router.post(
@@ -66,23 +66,6 @@ async def post_review(
     return ReviewCreateResponse(id=id)
 
 
-@router.put(
-    "/{review_id}",
-    response_model=ReviewManageResponse,
-    dependencies=[Depends(RoleBasedLimiter)],
-)
-async def put_review(
-    request: Request,
-    review_id: UUID,
-    review_data: ReviewCreateRequest,
-    user_id: UUID = Security(verify_review_permissions, scopes=["reviews:manage"]),
-    review_service: ReviewService = Depends(),
-) -> ReviewManageResponse:
-    await review_service.update_review(review_id, review_data)
-
-    return ReviewManageResponse()
-
-
 @router.patch(
     "/{review_id}",
     response_model=ReviewManageResponse,
@@ -95,7 +78,7 @@ async def patch_review(
     user_id: UUID = Security(verify_review_permissions, scopes=["reviews:manage"]),
     review_service: ReviewService = Depends(),
 ) -> ReviewManageResponse:
-    await review_service.partial_update_review(review_id, review_data)
+    await review_service.update_review(review_id, review_data)
 
     return ReviewManageResponse()
 

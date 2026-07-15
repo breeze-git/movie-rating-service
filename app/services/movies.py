@@ -5,11 +5,8 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions.error_messages import DirectorMessages, MovieMessages
-from app.core.exceptions.repositories import (
-    EntityAlreadyExistsError,
-    EntityNotFoundError,
-)
-from app.core.exceptions.services import AlreadyExistsError, NotFoundError
+from app.core.exceptions.repositories import RepositoryException
+from app.core.exceptions.services import NotFoundError
 from app.database.models import Country, Genre, Movie
 from app.database.repositories.director import DirectorRepository
 from app.database.repositories.movie import MovieRepository
@@ -26,31 +23,37 @@ from app.schemas.movies import (
 )
 from app.schemas.pagination import PaginationParams
 
+from .base import BaseService
+from .integrity_maps import MOVIE_INTEGRITY_MAP
 
-class MovieService:
+
+class MovieService(BaseService):
+    _integrity_map = MOVIE_INTEGRITY_MAP
+
     def __init__(self, session: AsyncSession = Depends(get_session)):
-        self.session = session
         self.movies = MovieRepository(session)
         self.directors = DirectorRepository(session)
 
-    async def _get_validated_countries(self, countries_ids: Sequence[int]) -> Sequence[Country]:
-        if not countries_ids:
+        super().__init__(session)
+
+    async def _get_validated_countries(self, country_ids: Sequence[int]) -> Sequence[Country]:
+        if not country_ids:
             return []
 
-        countries = await self.movies.get_countries_by_id(countries_ids)
+        countries = await self.movies.get_countries_by_id(country_ids)
 
-        if len(countries) < len(countries_ids):
+        if len(countries) < len(country_ids):
             raise NotFoundError(detail=MovieMessages.countries_not_found()) from None
 
         return countries
 
-    async def _get_validated_genres(self, genres_ids: Sequence[int]) -> Sequence[Genre]:
-        if not genres_ids:
+    async def _get_validated_genres(self, genre_ids: Sequence[int]) -> Sequence[Genre]:
+        if not genre_ids:
             return []
 
-        genres = await self.movies.get_genres_by_id(genres_ids)
+        genres = await self.movies.get_genres_by_id(genre_ids)
 
-        if len(genres) < len(genres_ids):
+        if len(genres) < len(genre_ids):
             raise NotFoundError(detail=MovieMessages.genres_not_found()) from None
 
         return genres
@@ -79,10 +82,10 @@ class MovieService:
 
         return movie
 
-    async def post_movie(self, payload: MoviePayload) -> MovieDetail:
-        db_director = await self.directors.get_by_id(payload.director_id)
+    async def create_movie(self, payload: MoviePayload) -> MovieDetail:
+        director = await self.directors.get_by_id(payload.director_id)
 
-        if db_director is None:
+        if not director:
             raise NotFoundError(DirectorMessages.not_found(director_id=payload.director_id)) from None
 
         genres = await self._get_validated_genres(payload.genre_ids)
@@ -92,12 +95,13 @@ class MovieService:
             **payload.model_dump(exclude={"country_ids", "genre_ids"}),
             genres=genres,
             countries=countries,
+            director=director,
         )
 
         try:
             await self.movies.save(db_movie)
-        except EntityAlreadyExistsError:
-            raise AlreadyExistsError(detail=MovieMessages.already_exists()) from None
+        except RepositoryException as e:
+            raise self._handle_repo_error(exc=e, **payload.model_dump()) from None
 
         await self.session.commit()
 
@@ -106,33 +110,30 @@ class MovieService:
         return movie
 
     async def update_movie(self, movie_id: UUID, payload: MovieUpdate) -> MovieDetail:
-        if payload.director_id:
-            db_director = await self.directors.get_by_id(payload.director_id)
-
-            if db_director is None:
-                raise NotFoundError(DirectorMessages.not_found(director_id=payload.director_id)) from None
-
-        if payload.country_ids or payload.genre_ids:
-            db_movie = await self.movies.get_by_id_with_relations(movie_id)
-        else:
-            db_movie = await self.movies.get_by_id(movie_id)
+        db_movie = await self.movies.get_by_id_with_relations(movie_id)
 
         if db_movie is None:
             raise NotFoundError(detail=MovieMessages.not_found(movie_id=movie_id)) from None
 
-        movie_data = payload.model_dump(exclude_unset=True, exclude={"country_ids", "genre_ids"})
+        genres = countries = None
 
         if payload.country_ids:
-            movie_data["countries"] = await self._get_validated_countries(payload.country_ids)
+            countries = await self._get_validated_countries(payload.country_ids)
+
         if payload.genre_ids:
-            movie_data["genres"] = await self._get_validated_genres(
-                payload.genre_ids,
-            )
+            genres = await self._get_validated_genres(payload.genre_ids)
+
+        movie_data = payload.model_dump(exclude_unset=True, exclude={"country_ids", "genre_ids"})
 
         try:
-            await self.movies.update(db_movie, movie_data)
-        except EntityAlreadyExistsError:
-            raise AlreadyExistsError(detail=MovieMessages.already_exists()) from None
+            await self.movies.update(
+                db_movie,
+                movie_data,
+                genres=genres,
+                countries=countries,
+            )
+        except RepositoryException as e:
+            raise self._handle_repo_error(exc=e, movie_id=movie_id, **payload.model_dump()) from None
 
         await self.session.commit()
 
@@ -141,9 +142,9 @@ class MovieService:
         return movie
 
     async def remove_movie(self, movie_id: UUID) -> None:
-        try:
-            await self.movies.delete_movie(movie_id)
-        except EntityNotFoundError:
+        result = await self.movies.delete(movie_id)
+
+        if not result.scalar():
             raise NotFoundError(detail=MovieMessages.not_found(movie_id=movie_id)) from None
 
         await self.session.commit()

@@ -7,7 +7,6 @@ from app.schemas.users import (
     UserGetResponse,
     UserPatchRequest,
     UserProfileResponse,
-    UserPutRequest,
     UserUpdateResponse,
 )
 from app.services.users import UserService
@@ -47,22 +46,6 @@ async def get_user(
     return UserGetResponse.model_validate(user)
 
 
-@router.put(
-    "/me",
-    response_model=UserUpdateResponse,
-    dependencies=[Depends(RoleBasedLimiter)],
-)
-async def put_user(
-    request: Request,
-    user_data: UserPutRequest,
-    user_id: UUID = Depends(get_user_id_from_token),
-    user_service: UserService = Depends(),
-):
-    await user_service.update_user(user_id, user_data)
-
-    return UserUpdateResponse()
-
-
 @router.patch(
     "/me",
     response_model=UserUpdateResponse,
@@ -74,7 +57,7 @@ async def patch_user(
     user_id: UUID = Depends(get_user_id_from_token),
     user_service: UserService = Depends(),
 ):
-    await user_service.partial_update_user(user_id, user_data)
+    await user_service.update_user(user_id, user_data)
 
     return UserUpdateResponse()
 
