@@ -15,6 +15,7 @@ from app.schemas.common import CollectionEnvelope
 from app.schemas.movies import (
     CountryBase,
     GenreBase,
+    MovieBrief,
     MovieDetail,
     MovieFilterCriteria,
     MoviePayload,
@@ -63,7 +64,7 @@ class MovieService(BaseService):
         filters: MovieFilterCriteria,
         sort: MovieSortCriteria,
         pagination: PaginationParams,
-    ) -> CollectionEnvelope:
+    ) -> CollectionEnvelope[MovieBrief]:
         movie_collection = await self.movies.get_movies(
             **filters.model_dump(),
             **sort.model_dump(),
@@ -82,26 +83,26 @@ class MovieService(BaseService):
 
         return movie
 
-    async def create_movie(self, payload: MoviePayload) -> MovieDetail:
-        director = await self.directors.get_by_id(payload.director_id)
+    async def create_movie(self, dto: MoviePayload) -> MovieDetail:
+        db_director = await self.directors.get_by_id(dto.director_id)
 
-        if not director:
-            raise NotFoundError(DirectorMessages.not_found(director_id=payload.director_id)) from None
+        if not db_director:
+            raise NotFoundError(DirectorMessages.not_found(director_id=dto.director_id)) from None
 
-        genres = await self._get_validated_genres(payload.genre_ids)
-        countries = await self._get_validated_countries(payload.country_ids)
+        genres = await self._get_validated_genres(dto.genre_ids)
+        countries = await self._get_validated_countries(dto.country_ids)
 
         db_movie = Movie(
-            **payload.model_dump(exclude={"country_ids", "genre_ids"}),
+            **dto.model_dump(exclude={"country_ids", "genre_ids"}),
             genres=genres,
             countries=countries,
-            director=director,
+            director=db_director,
         )
 
         try:
             await self.movies.save(db_movie)
         except RepositoryException as e:
-            raise self._handle_repo_error(exc=e, **payload.model_dump()) from None
+            raise self._handle_repo_error(exc=e, **dto.model_dump()) from None
 
         await self.session.commit()
 
@@ -109,7 +110,7 @@ class MovieService(BaseService):
 
         return movie
 
-    async def update_movie(self, movie_id: UUID, payload: MovieUpdate) -> MovieDetail:
+    async def update_movie(self, movie_id: UUID, dto: MovieUpdate) -> MovieDetail:
         db_movie = await self.movies.get_by_id_with_relations(movie_id)
 
         if db_movie is None:
@@ -117,23 +118,18 @@ class MovieService(BaseService):
 
         genres = countries = None
 
-        if payload.country_ids:
-            countries = await self._get_validated_countries(payload.country_ids)
+        if dto.country_ids:
+            countries = await self._get_validated_countries(dto.country_ids)
 
-        if payload.genre_ids:
-            genres = await self._get_validated_genres(payload.genre_ids)
+        if dto.genre_ids:
+            genres = await self._get_validated_genres(dto.genre_ids)
 
-        movie_data = payload.model_dump(exclude_unset=True, exclude={"country_ids", "genre_ids"})
+        update_data = dto.model_dump(exclude_unset=True, exclude={"country_ids", "genre_ids"})
 
         try:
-            await self.movies.update(
-                db_movie,
-                movie_data,
-                genres=genres,
-                countries=countries,
-            )
+            await self.movies.update(db_movie, update_data, genres=genres, countries=countries)
         except RepositoryException as e:
-            raise self._handle_repo_error(exc=e, movie_id=movie_id, **payload.model_dump()) from None
+            raise self._handle_repo_error(exc=e, movie_id=movie_id, **update_data) from None
 
         await self.session.commit()
 
@@ -149,12 +145,12 @@ class MovieService(BaseService):
 
         await self.session.commit()
 
-    async def get_all_genres(self) -> list[GenreBase]:
-        genres = await self.movies.get_all_genres()
+    async def get_all_genres(self, pagination: PaginationParams) -> CollectionEnvelope[GenreBase]:
+        genre_collection = await self.movies.get_all_genres(limit=pagination.limit, offset=pagination.offset)
 
-        return genres
+        return genre_collection
 
-    async def get_all_countries(self) -> list[CountryBase]:
-        countries = await self.movies.get_all_countries()
+    async def get_all_countries(self, pagination: PaginationParams) -> CollectionEnvelope[CountryBase]:
+        country_collection = await self.movies.get_all_countries(limit=pagination.limit, offset=pagination.offset)
 
-        return countries
+        return country_collection

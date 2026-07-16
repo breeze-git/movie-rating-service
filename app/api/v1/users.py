@@ -1,14 +1,9 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, status
 
-from app.schemas.users import (
-    UserDeleteResponse,
-    UserGetResponse,
-    UserPatchRequest,
-    UserProfileResponse,
-    UserUpdateResponse,
-)
+from app.schemas.common import ResponseEnvelope
+from app.schemas.users import UserBrief, UserDetail, UserUpdate, UserWithReviews
 from app.services.users import UserService
 
 from .dependencies import IPBasedLimiter, RoleBasedLimiter, get_user_id_from_token
@@ -18,60 +13,58 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get(
     "/me",
-    response_model=UserProfileResponse,
+    response_model=ResponseEnvelope[UserDetail],
     dependencies=[Depends(RoleBasedLimiter)],
 )
 async def get_profile(
     request: Request,
     user_id: UUID = Depends(get_user_id_from_token),
-    user_service: UserService = Depends(),
-):
-    user = await user_service.get_user(user_id)
+    service: UserService = Depends(),
+) -> ResponseEnvelope:
+    user = await service.get_profile(user_id)
 
-    return UserProfileResponse.model_validate(user)
+    return ResponseEnvelope(data=user)
 
 
 @router.get(
     "/{user_id}",
-    response_model=UserGetResponse,
+    response_model=ResponseEnvelope[UserWithReviews],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
 )
 async def get_user(
     request: Request,
     user_id: UUID,
-    user_service: UserService = Depends(),
-):
-    user = await user_service.get_user(user_id)
+    service: UserService = Depends(),
+) -> ResponseEnvelope:
+    user = await service.get_user(user_id)
 
-    return UserGetResponse.model_validate(user)
+    return ResponseEnvelope(data=user)
 
 
 @router.patch(
     "/me",
-    response_model=UserUpdateResponse,
+    response_model=ResponseEnvelope[UserBrief],
     dependencies=[Depends(RoleBasedLimiter)],
 )
 async def patch_user(
     request: Request,
-    user_data: UserPatchRequest,
+    payload: UserUpdate,
     user_id: UUID = Depends(get_user_id_from_token),
-    user_service: UserService = Depends(),
-):
-    await user_service.update_user(user_id, user_data)
+    service: UserService = Depends(),
+) -> ResponseEnvelope:
+    user = await service.update_user(user_id, payload)
 
-    return UserUpdateResponse()
+    return ResponseEnvelope(data=user)
 
 
 @router.delete(
     "/me",
-    response_model=UserDeleteResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
 )
 async def delete_user(
     request: Request,
     user_id: UUID = Depends(get_user_id_from_token),
-    user_service: UserService = Depends(),
-) -> UserDeleteResponse:
-    await user_service.remove_user(user_id)
-
-    return UserDeleteResponse()
+    service: UserService = Depends(),
+) -> None:
+    await service.remove_user(user_id)

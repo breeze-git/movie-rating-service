@@ -9,8 +9,9 @@ from app.core.exceptions.services import NotFoundError
 from app.database.models import Director
 from app.database.repositories.director import DirectorRepository
 from app.database.session import get_session
-from app.schemas.common import DirectorBrief
+from app.schemas.common import CollectionEnvelope, DirectorBrief
 from app.schemas.directors import DirectorBase, DirectorDetail, DirectorUpdate
+from app.schemas.pagination import PaginationParams
 
 from .base import BaseService
 from .integrity_maps import DIRECTOR_INTEGRITY_MAP
@@ -34,18 +35,24 @@ class DirectorService(BaseService):
 
         return director
 
-    async def get_directors(self, name_search: str | None) -> list[DirectorBrief]:
-        directors = await self.directors.get_directors(name_search)
+    async def get_directors(
+        self, search: str | None, pagination: PaginationParams
+    ) -> CollectionEnvelope[DirectorBrief]:
+        director_collection = await self.directors.get_directors(
+            search=search,
+            limit=pagination.limit,
+            offset=pagination.offset,
+        )
 
-        return directors
+        return director_collection
 
-    async def create_director(self, payload: DirectorBase) -> DirectorBrief:
-        db_director = Director(**payload.model_dump())
+    async def create_director(self, dto: DirectorBase) -> DirectorBrief:
+        db_director = Director(**dto.model_dump())
 
         try:
             await self.directors.save(db_director)
         except RepositoryException as e:
-            raise self._handle_repo_error(exc=e, **payload.model_dump()) from None
+            raise self._handle_repo_error(exc=e, **dto.model_dump()) from None
 
         await self.session.commit()
 
@@ -53,18 +60,18 @@ class DirectorService(BaseService):
 
         return director
 
-    async def update_director(self, director_id: UUID, payload: DirectorUpdate) -> DirectorBrief:
+    async def update_director(self, director_id: UUID, dto: DirectorUpdate) -> DirectorBrief:
         db_director = await self.directors.get_by_id(director_id)
 
         if db_director is None:
             raise NotFoundError(detail=DirectorMessages.not_found(director_id=director_id)) from None
 
-        director_data = payload.model_dump(exclude_unset=True)
+        update_data = dto.model_dump(exclude_unset=True)
 
         try:
-            await self.directors.update(db_director, director_data)
+            await self.directors.update(db_director, update_data)
         except RepositoryException as e:
-            raise self._handle_repo_error(exc=e, director_id=director_id, **payload.model_dump()) from None
+            raise self._handle_repo_error(exc=e, director_id=director_id, **update_data) from None
 
         await self.session.commit()
 

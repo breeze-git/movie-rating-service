@@ -1,4 +1,4 @@
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +12,12 @@ from app.database.repositories.review import ReviewRepository
 from app.database.session import get_session
 from app.schemas.common import CollectionEnvelope
 from app.schemas.pagination import PaginationParams
-from app.schemas.reviews import ReviewCreateRequest, ReviewPatchRequest, ReviewSort
+from app.schemas.reviews import (
+    ReviewDetail,
+    ReviewPayload,
+    ReviewSortCriteria,
+    ReviewUpdate,
+)
 from app.services.base import BaseService
 from app.services.integrity_maps import REVIEW_INTEGRITY_MAP
 
@@ -27,8 +32,8 @@ class ReviewService(BaseService):
         super().__init__(session)
 
     async def get_movie_reviews(
-        self, movie_id: UUID, sort: ReviewSort, pagination: PaginationParams
-    ) -> CollectionEnvelope:
+        self, movie_id: UUID, sort: ReviewSortCriteria, pagination: PaginationParams
+    ) -> CollectionEnvelope[ReviewDetail]:
         review_collection = await self.reviews.get_movie_reviews(
             movie_id,
             **sort.model_dump(),
@@ -41,51 +46,53 @@ class ReviewService(BaseService):
         return review_collection
 
     async def get_review_by_id(self, review_id: UUID) -> Review:
-        review = await self.reviews.get_by_id(review_id)
+        db_review = await self.reviews.get_by_id(review_id)
 
-        if review is None:
+        if db_review is None:
             raise NotFoundError(detail=ReviewMessages.not_found(review_id=review_id)) from None
 
-        return review
+        return db_review
 
-    async def create_review(self, movie_id: UUID, user_id: UUID, review_data: ReviewCreateRequest) -> UUID:
-        id = uuid4()
-
-        new_review = Review(
-            id=id,
+    async def create_review(self, movie_id: UUID, user_id: UUID, dto: ReviewPayload) -> ReviewDetail:
+        db_review = Review(
             user_id=user_id,
             movie_id=movie_id,
-            message=review_data.message,
-            rating=review_data.rating,
+            **dto.model_dump(),
         )
 
         try:
-            await self.reviews.save(new_review)
+            await self.reviews.save(db_review)
         except RepositoryException as e:
-            raise self._handle_repo_error(exc=e, user_id=user_id, movie_id=movie_id) from None
+            raise self._handle_repo_error(exc=e, user_id=user_id, movie_id=movie_id, **dto.model_dump()) from None
 
         await self.movies.update_rating(movie_id)
 
         await self.session.commit()
 
-        return id
+        review = ReviewDetail.model_validate(db_review)
 
-    async def update_review(self, review_id: UUID, review_data: ReviewPatchRequest) -> None:
-        review = await self.reviews.get_by_id(review_id)
+        return review
 
-        if review is None:
+    async def update_review(self, review_id: UUID, dto: ReviewUpdate) -> ReviewDetail:
+        db_review = await self.reviews.get_by_id(review_id)
+
+        if db_review is None:
             raise NotFoundError(detail=ReviewMessages.not_found(review_id=review_id)) from None
 
-        review_data_dict = review_data.model_dump(exclude_unset=True)
+        update_data = dto.model_dump(exclude_unset=True)
 
         try:
-            await self.reviews.update(review, review_data_dict)
+            await self.reviews.update(db_review, update_data)
         except RepositoryException as e:
-            raise self._handle_repo_error(exc=e, review_id=review_id) from None
+            raise self._handle_repo_error(exc=e, review_id=review_id, **update_data) from None
 
-        await self.movies.update_rating(review.movie_id)
+        await self.movies.update_rating(db_review.movie_id)
 
         await self.session.commit()
+
+        review = ReviewDetail.model_validate(db_review)
+
+        return review
 
     async def remove_review(self, review_id: UUID) -> None:
         result = await self.reviews.delete(review_id)

@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import bcrypt
 from fastapi import Depends
@@ -16,8 +16,8 @@ from app.core.security import get_hash
 from app.database.models import User
 from app.database.repositories.user import UserRepository
 from app.database.session import get_session
-from app.schemas.auth import UserRegisterRequest
-from app.schemas.users import UserPatchRequest
+from app.schemas.auth import UserRegister
+from app.schemas.users import UserBrief, UserDetail, UserUpdate, UserWithReviews
 
 from .base import BaseService
 from .integrity_maps import USER_INTEGRITY_MAP
@@ -31,53 +31,66 @@ class UserService(BaseService):
 
         super().__init__(session)
 
-    async def get_user(self, user_id: UUID):
-        user = await self.users.get_by_id_with_relations(user_id)
+    async def get_user(self, user_id: UUID) -> UserWithReviews:
+        db_user = await self.users.get_by_id_with_relations(user_id)
 
-        if user is None:
+        if db_user is None:
             raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None
+
+        user = UserWithReviews.model_validate(db_user)
 
         return user
 
-    async def register_user(self, user_data: UserRegisterRequest) -> UUID:
-        existing_user = await self.users.get_by_email(user_data.email)
+    async def get_profile(self, user_id: UUID) -> UserDetail:
+        db_user = await self.users.get_by_id_with_relations(user_id)
+
+        if db_user is None:
+            raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None
+
+        user = UserDetail.model_validate(db_user)
+
+        return user
+
+    async def register_user(self, dto: UserRegister) -> UserBrief:
+        existing_user = await self.users.get_by_email(dto.email)
 
         if existing_user is not None:
-            raise AlreadyExistsError(detail=UserMessages.already_exists(email=user_data.email)) from None
+            raise AlreadyExistsError(detail=UserMessages.already_exists(email=dto.email)) from None
 
-        id = uuid4()
-        hashed_password = get_hash(user_data.password).decode("utf-8")
+        hashed_password = get_hash(dto.password).decode("utf-8")
 
         default_roles = await self.users.get_default_roles()
 
-        new_user = User(
-            id=id,
-            username=user_data.username,
-            first_name=user_data.first_name,
-            last_name=user_data.last_name,
-            email=user_data.email,
+        db_user = User(
+            **dto.model_dump(),
             hashed_password=hashed_password,
             roles=default_roles,
         )
 
-        await self.users.save(new_user)
+        try:
+            await self.users.save(db_user)
+        except RepositoryException as e:
+            raise self._handle_repo_error(exc=e, **dto.model_dump()) from None
+
         await self.session.commit()
 
-        return id
+        user = UserBrief.model_validate(db_user)
 
-    async def authenticate_user(self, email: str, password: str) -> User:
-        user = await self.users.get_by_email(email)
+        return user
 
-        if user is None:
+    async def authenticate_user(self, email: str, password: str) -> UUID:
+        db_user = await self.users.get_by_email(email)
+
+        if db_user is None:
             raise NotFoundError(detail=UserMessages.not_found(email=email)) from None
 
         user_pass = password.encode("utf-8")
-        hashed_pass = user.hashed_password.encode("utf-8")
+        hashed_pass = db_user.hashed_password.encode("utf-8")
 
         if not bcrypt.checkpw(user_pass, hashed_pass):
             raise InvalidCredentialsError() from None
 
-        return user
+        return db_user.id
 
     async def get_user_roles(self, user_id: UUID) -> Sequence[str]:
         roles = await self.users.get_roles(user_id)
@@ -95,20 +108,24 @@ class UserService(BaseService):
 
         return perms
 
-    async def update_user(self, user_id: UUID, user_data: UserPatchRequest) -> None:
-        user = await self.users.get_by_id(user_id)
+    async def update_user(self, user_id: UUID, dto: UserUpdate) -> UserBrief:
+        db_user = await self.users.get_by_id(user_id)
 
-        if user is None:
+        if db_user is None:
             raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None
 
-        user_data_dict = user_data.model_dump(exclude_unset=True)
+        update_data = dto.model_dump(exclude_unset=True)
 
         try:
-            await self.users.update(user, user_data_dict)
+            await self.users.update(db_user, update_data)
         except RepositoryException as e:
-            raise self._handle_repo_error(exc=e, user_id=user_id, **user_data_dict) from None
+            raise self._handle_repo_error(exc=e, user_id=user_id, **update_data) from None
 
         await self.session.commit()
+
+        user = UserBrief.model_validate(db_user)
+
+        return user
 
     async def remove_user(self, user_id: UUID) -> None:
         result = await self.users.delete(user_id)

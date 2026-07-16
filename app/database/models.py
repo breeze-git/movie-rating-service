@@ -48,6 +48,11 @@ class Movie(Base):
             "director_id",
             name="uq_movie_title_year_director",
         ),
+        Index(
+            "movie_search_trgm_idx",
+            text("title gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
     )
 
 
@@ -140,8 +145,8 @@ class Review(Base):
     movie_id: Mapped[UUID] = mapped_column(ForeignKey("movies.id", ondelete="CASCADE"), index=True)
     message: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    rating: Mapped[int | None] = mapped_column(default=None)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None, index=True)
+    rating: Mapped[int | None] = mapped_column(default=None, index=True)
 
     user: Mapped[User] = relationship(back_populates="reviews")
     movie: Mapped["Movie"] = relationship(back_populates="reviews")

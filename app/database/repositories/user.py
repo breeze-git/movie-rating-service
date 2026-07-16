@@ -1,4 +1,5 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -21,32 +22,32 @@ class UserRepository(BaseRepository):
 
         return user
 
-    async def get_by_id_with_relations(self, id: UUID) -> User | None:
-        query = select(User).where(User.id == id).options(selectinload(User.reviews))
+    async def get_by_id_with_relations(self, user_id: UUID) -> User | None:
+        query = select(User).where(User.id == user_id).options(selectinload(User.reviews))
 
         user = await self.session.scalar(query)
 
         return user
 
-    async def update(self, user: User, user_data_dict: dict):
-        for key, value in user_data_dict.items():
+    async def update(self, user: User, update_data: Mapping[str, Any]):
+        for key, value in update_data.items():
             setattr(user, key, value)
 
         await self._flush()
 
-    async def get_roles(self, id: UUID) -> Sequence[str]:
-        query = select(Role.name).join(UserRoles, Role.id == UserRoles.role_id).where(UserRoles.user_id == id)
+    async def get_roles(self, user_id: UUID) -> Sequence[str]:
+        query = select(Role.name).join(UserRoles, Role.id == UserRoles.role_id).where(UserRoles.user_id == user_id)
 
         result = await self.session.scalars(query)
 
         return result.all()
 
-    async def get_permissions(self, id: UUID) -> Sequence[str]:
+    async def get_permissions(self, user_id: UUID) -> Sequence[str]:
         query = (
             select(Permission.name)
             .join(RolePermissions, Permission.id == RolePermissions.permission_id)
             .join(UserRoles, RolePermissions.role_id == UserRoles.role_id)
-            .where(UserRoles.user_id == id)
+            .where(UserRoles.user_id == user_id)
         )
 
         result = await self.session.scalars(query)

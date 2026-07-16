@@ -1,11 +1,13 @@
+from collections.abc import Mapping
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
 
 from app.database.models import Movie, Review
 from app.schemas.common import CollectionEnvelope
-from app.schemas.reviews import ReviewDTO, ReviewSortBy
+from app.schemas.reviews import ReviewDetail, ReviewSortBy
 
 from .base import BaseRepository
 
@@ -20,7 +22,7 @@ class ReviewRepository(BaseRepository):
         sort_desc: bool = False,
         limit: int = 10,
         offset: int = 0,
-    ) -> CollectionEnvelope | None:
+    ) -> CollectionEnvelope[ReviewDetail] | None:
         movie = await self.session.get(Movie, id)
 
         if movie is None:
@@ -52,7 +54,7 @@ class ReviewRepository(BaseRepository):
 
         rows = result.mappings().all()
 
-        reviews = [ReviewDTO.model_validate(row) for row in rows]
+        reviews = [ReviewDetail.model_validate(row) for row in rows]
 
         collection = CollectionEnvelope(
             items=reviews,
@@ -61,8 +63,8 @@ class ReviewRepository(BaseRepository):
 
         return collection
 
-    async def update(self, review: Review, review_data_dict: dict) -> None:
-        for key, value in review_data_dict.items():
+    async def update(self, review: Review, update_data: Mapping[str, Any]) -> None:
+        for key, value in update_data.items():
             setattr(review, key, value)
 
         review.updated_at = datetime.now()

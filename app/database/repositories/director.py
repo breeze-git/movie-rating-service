@@ -2,11 +2,11 @@ from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.database.models import Director
-from app.schemas.common import DirectorBrief
+from app.schemas.common import CollectionEnvelope, DirectorBrief
 
 from .base import BaseRepository
 
@@ -14,14 +14,23 @@ from .base import BaseRepository
 class DirectorRepository(BaseRepository):
     model = Director
 
-    async def get_directors(self, name_search: str | None) -> list[DirectorBrief]:
-        if name_search:
-            query = select(
-                Director.id,
-                Director.first_name,
-                Director.last_name,
-                Director.date_of_birth,
-            ).where((Director.first_name + " " + Director.last_name).ilike(f"%{name_search}%"))
+    async def get_directors(
+        self, search: str | None = None, limit: int = 10, offset: int = 0
+    ) -> CollectionEnvelope[DirectorBrief]:
+        query = select(
+            Director.id,
+            Director.first_name,
+            Director.last_name,
+            Director.date_of_birth,
+        )
+
+        if search:
+            query = query.where(func.concat(Director.first_name, " ", Director.last_name).ilike(f"%{search}%"))
+
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await self.session.scalar(count_query) or 0
+
+        query = query.limit(limit).offset(offset)
 
         result = await self.session.execute(query)
 
@@ -29,17 +38,22 @@ class DirectorRepository(BaseRepository):
 
         directors = [DirectorBrief.model_validate(row) for row in rows]
 
-        return directors
+        collection = CollectionEnvelope(
+            items=directors,
+            total=total,
+        )
 
-    async def get_by_id_with_relations(self, id: UUID) -> Director | None:
-        query = select(Director).where(Director.id == id).options(selectinload(Director.movies))
+        return collection
+
+    async def get_by_id_with_relations(self, director_id: UUID) -> Director | None:
+        query = select(Director).where(Director.id == director_id).options(selectinload(Director.movies))
 
         director = await self.session.scalar(query)
 
         return director
 
-    async def update(self, director: Director, director_data: Mapping[str, Any]):
-        for key, value in director_data.items():
+    async def update(self, director: Director, update_data: Mapping[str, Any]):
+        for key, value in update_data.items():
             setattr(director, key, value)
 
         await self._flush()

@@ -86,6 +86,7 @@ class MovieSortCriteria(BaseModel):
 
 
 class MovieFilterCriteria(BaseModel):
+    search: str | None
     country_ids: Sequence[int] | None
     genre_ids: Sequence[int] | None
     director_ids: Sequence[UUID] | None

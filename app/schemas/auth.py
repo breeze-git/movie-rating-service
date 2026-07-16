@@ -5,26 +5,22 @@ class UserBaseAuth(BaseModel):
     password: str = Field(min_length=12)
 
 
-class UserLoginRequest(UserBaseAuth):
+class UserLogin(UserBaseAuth):
     email: EmailStr
 
 
-class UserRegisterRequest(UserBaseAuth):
+class UserRegister(UserBaseAuth):
     username: str
     email: EmailStr
     first_name: str | None = None
     last_name: str | None = None
 
 
-class UserRegisterResponse(BaseModel):
-    message: str = "New user registered"
-
-
-class Token(BaseModel):
+class RefreshToken(BaseModel):
     refresh_token: str
 
 
-class TokensResponse(BaseModel):
+class Tokens(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str

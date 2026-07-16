@@ -23,54 +23,28 @@ router = APIRouter(prefix="/movies", tags=["Movies"])
 
 
 @router.get(
-    "/genres",
-    response_model=ResponseEnvelope[list[GenreBase]],
-    dependencies=[Depends(IPBasedLimiter("5/minute"))],
-)
-async def get_genres(
-    request: Request,
-    movie_service: MovieService = Depends(),
-) -> ResponseEnvelope:
-    genres = await movie_service.get_all_genres()
-
-    return ResponseEnvelope(data=genres)
-
-
-@router.get(
-    "/countries",
-    response_model=ResponseEnvelope[list[CountryBase]],
-    dependencies=[Depends(IPBasedLimiter("5/minute"))],
-)
-async def get_countries(
-    request: Request,
-    movie_service: MovieService = Depends(),
-) -> ResponseEnvelope:
-    countries = await movie_service.get_all_countries()
-
-    return ResponseEnvelope(data=countries)
-
-
-@router.get(
     "",
     response_model=ResponseEnvelope[CollectionEnvelope[MovieBrief]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
 )
 async def get_movies(
     request: Request,
+    search: str | None = Query(default=None),
     country_ids: Sequence[int] | None = Query(default=None),
     genre_ids: Sequence[int] | None = Query(default=None),
     director_ids: Sequence[UUID] | None = Query(default=None),
     sort: MovieSortCriteria = Depends(),
-    movie_service: MovieService = Depends(),
+    service: MovieService = Depends(),
     pagination: PaginationParams = Depends(),
 ) -> ResponseEnvelope:
     filters = MovieFilterCriteria(
+        search=search,
         country_ids=country_ids,
         genre_ids=genre_ids,
         director_ids=director_ids,
     )
 
-    movie_collection = await movie_service.get_movies(
+    movie_collection = await service.get_movies(
         filters=filters,
         sort=sort,
         pagination=pagination,
@@ -83,6 +57,53 @@ async def get_movies(
 
 
 @router.get(
+    "/genres",
+    response_model=ResponseEnvelope[CollectionEnvelope[GenreBase]],
+    dependencies=[Depends(IPBasedLimiter("5/minute"))],
+)
+async def get_genres(
+    request: Request,
+    pagination: PaginationParams = Depends(),
+    service: MovieService = Depends(),
+) -> ResponseEnvelope:
+    genre_collection = await service.get_all_genres(pagination)
+
+    return ResponseEnvelope(data=genre_collection)
+
+
+@router.get(
+    "/countries",
+    response_model=ResponseEnvelope[CollectionEnvelope[CountryBase]],
+    dependencies=[Depends(IPBasedLimiter("5/minute"))],
+)
+async def get_countries(
+    request: Request,
+    pagination: PaginationParams = Depends(),
+    service: MovieService = Depends(),
+) -> ResponseEnvelope:
+    country_collection = await service.get_all_countries(pagination)
+
+    return ResponseEnvelope(data=country_collection)
+
+
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ResponseEnvelope[MovieDetail],
+    dependencies=[Depends(RoleBasedLimiter)],
+)
+async def post_movie(
+    request: Request,
+    payload: MoviePayload,
+    user_id: UUID = Security(verify_global_permissions, scopes=["movies:post"]),
+    service: MovieService = Depends(),
+) -> ResponseEnvelope:
+    movie = await service.create_movie(payload)
+
+    return ResponseEnvelope(data=movie)
+
+
+@router.get(
     "/{movie_id}",
     response_model=ResponseEnvelope[MovieDetail],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
@@ -90,26 +111,9 @@ async def get_movies(
 async def get_movie(
     request: Request,
     movie_id: UUID,
-    movie_service: MovieService = Depends(),
+    service: MovieService = Depends(),
 ) -> ResponseEnvelope:
-    movie = await movie_service.get_movie_by_id(movie_id)
-
-    return ResponseEnvelope(data=movie)
-
-
-@router.post(
-    "/",
-    status_code=status.HTTP_201_CREATED,
-    response_model=ResponseEnvelope[MovieDetail],
-    dependencies=[Depends(RoleBasedLimiter)],
-)
-async def post_movie(
-    request: Request,
-    movie_data: MoviePayload,
-    user_id: UUID = Security(verify_global_permissions, scopes=["movies:post"]),
-    movie_service: MovieService = Depends(),
-) -> ResponseEnvelope:
-    movie = await movie_service.create_movie(movie_data)
+    movie = await service.get_movie_by_id(movie_id)
 
     return ResponseEnvelope(data=movie)
 
@@ -122,11 +126,11 @@ async def post_movie(
 async def patch_movie(
     request: Request,
     movie_id: UUID,
-    movie_data: MovieUpdate,
+    payload: MovieUpdate,
     user_id: UUID = Security(verify_global_permissions, scopes=["movies:manage"]),
-    movie_service: MovieService = Depends(),
+    service: MovieService = Depends(),
 ) -> ResponseEnvelope:
-    movie = await movie_service.update_movie(movie_id, movie_data)
+    movie = await service.update_movie(movie_id, payload)
 
     return ResponseEnvelope(data=movie)
 
@@ -140,6 +144,6 @@ async def delete_movie(
     request: Request,
     movie_id: UUID,
     user_id: UUID = Security(verify_global_permissions, scopes=["movies:delete"]),
-    movie_service: MovieService = Depends(),
+    service: MovieService = Depends(),
 ) -> None:
-    await movie_service.remove_movie(movie_id)
+    await service.remove_movie(movie_id)

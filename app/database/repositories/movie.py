@@ -2,7 +2,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.engine.row import RowMapping
 from sqlalchemy.orm import selectinload
 
@@ -32,10 +32,11 @@ class MovieRepository(BaseRepository):
 
     async def get_movies(
         self,
-        country_ids: Sequence[int] | None,
-        genre_ids: Sequence[int] | None,
-        director_ids: Sequence[UUID] | None,
-        sort_by: MovieSortBy,
+        search: str | None = None,
+        country_ids: Sequence[int] | None = None,
+        genre_ids: Sequence[int] | None = None,
+        director_ids: Sequence[UUID] | None = None,
+        sort_by: MovieSortBy = MovieSortBy.RELEASE_YEAR,
         sort_desc: bool = False,
         limit: int = 10,
         offset: int = 0,
@@ -51,6 +52,13 @@ class MovieRepository(BaseRepository):
             Director.date_of_birth.label("director_date_of_birth"),
         ).join(Director, Director.id == Movie.director_id)
 
+        if search:
+            query = query.where(
+                or_(
+                    Movie.title.ilike(f"%{search}%"),
+                    func.concat(Director.first_name, " ", Director.last_name).ilike(f"%{search}%"),
+                )
+            )
         if genre_ids:
             query = query.join(Movie.genres).where(Genre.id.in_(genre_ids))
         if country_ids:
@@ -85,10 +93,10 @@ class MovieRepository(BaseRepository):
 
         return collection
 
-    async def get_by_id_with_relations(self, id: UUID) -> Movie | None:
+    async def get_by_id_with_relations(self, movie_id: UUID) -> Movie | None:
         query = (
             select(Movie)
-            .where(Movie.id == id)
+            .where(Movie.id == movie_id)
             .options(
                 selectinload(Movie.genres),
                 selectinload(Movie.countries),
@@ -102,21 +110,21 @@ class MovieRepository(BaseRepository):
 
         return movie
 
-    async def update_rating(self, id: UUID) -> None:
-        subquery = select(func.avg(Review.rating)).where(Review.movie_id == id).scalar_subquery()
+    async def update_rating(self, movie_id: UUID) -> None:
+        subquery = select(func.avg(Review.rating)).where(Review.movie_id == movie_id).scalar_subquery()
 
-        stmt = update(Movie).where(Movie.id == id).values(rating=subquery)
+        stmt = update(Movie).where(Movie.id == movie_id).values(rating=subquery)
 
         await self._execute(stmt)
 
     async def update(
         self,
         movie: Movie,
-        movie_data: Mapping[str, Any],
+        update_data: Mapping[str, Any],
         genres: Sequence[Genre] | None = None,
         countries: Sequence[Country] | None = None,
     ) -> None:
-        for key, value in movie_data.items():
+        for key, value in update_data.items():
             setattr(movie, key, value)
 
         if genres is not None:
@@ -127,34 +135,58 @@ class MovieRepository(BaseRepository):
 
         await self._flush()
 
-    async def get_countries_by_id(self, countries_ids: Sequence[int]) -> Sequence[Country]:
-        query = select(Country).where(Country.id.in_(countries_ids))
+    async def get_countries_by_id(self, country_ids: Sequence[int]) -> Sequence[Country]:
+        query = select(Country).where(Country.id.in_(country_ids))
 
         result = await self.session.scalars(query)
 
         return result.all()
 
-    async def get_genres_by_id(self, genres_ids: Sequence[int]) -> Sequence[Genre]:
-        query = select(Genre).where(Genre.id.in_(genres_ids))
+    async def get_genres_by_id(self, genre_ids: Sequence[int]) -> Sequence[Genre]:
+        query = select(Genre).where(Genre.id.in_(genre_ids))
 
         result = await self.session.scalars(query)
 
         return result.all()
 
-    async def get_all_genres(self) -> list[GenreBase]:
-        result = await self.session.execute(select(Genre.id, Genre.name))
+    async def get_all_genres(self, limit: int = 10, offset: int = 0) -> CollectionEnvelope[GenreBase]:
+        query = select(Genre.id, Genre.name)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await self.session.scalar(count_query) or 0
+
+        query = query.limit(limit).offset(offset)
+
+        result = await self.session.execute(query)
 
         rows = result.mappings().all()
 
         genres = [GenreBase.model_validate(row) for row in rows]
 
-        return genres
+        collection = CollectionEnvelope(
+            items=genres,
+            total=total,
+        )
 
-    async def get_all_countries(self) -> list[CountryBase]:
-        result = await self.session.execute(select(Country.id, Country.name))
+        return collection
+
+    async def get_all_countries(self, limit: int = 10, offset: int = 0) -> CollectionEnvelope[CountryBase]:
+        query = select(Country.id, Country.name)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await self.session.scalar(count_query) or 0
+
+        query = query.limit(limit).offset(offset)
+
+        result = await self.session.execute(query)
 
         rows = result.mappings().all()
 
         countries = [CountryBase.model_validate(row) for row in rows]
 
-        return countries
+        collection = CollectionEnvelope(
+            items=countries,
+            total=total,
+        )
+
+        return collection
