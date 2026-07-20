@@ -3,15 +3,13 @@ from uuid import UUID
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions.error_messages import MovieMessages, ReviewMessages
 from app.core.exceptions.repositories import RepositoryException
 from app.core.exceptions.services import NotFoundError
 from app.database.models import Review
 from app.database.repositories.movie import MovieRepository
 from app.database.repositories.review import ReviewRepository
 from app.database.session import get_session
-from app.schemas.common import CollectionEnvelope
-from app.schemas.pagination import PaginationParams
+from app.schemas.common import CollectionEnvelope, PaginationParams
 from app.schemas.reviews import (
     ReviewDetail,
     ReviewPayload,
@@ -20,6 +18,8 @@ from app.schemas.reviews import (
 )
 from app.services.base import BaseService
 from app.services.integrity_maps import REVIEW_INTEGRITY_MAP
+
+from .error_details import MovieErrorDetails, ReviewErrorDetails
 
 
 class ReviewService(BaseService):
@@ -41,7 +41,7 @@ class ReviewService(BaseService):
         )
 
         if review_collection is None:
-            raise NotFoundError(detail=MovieMessages.not_found(movie_id=movie_id)) from None
+            raise NotFoundError(**MovieErrorDetails.not_found(id=movie_id)) from None
 
         return review_collection
 
@@ -49,7 +49,7 @@ class ReviewService(BaseService):
         db_review = await self.reviews.get_by_id(review_id)
 
         if db_review is None:
-            raise NotFoundError(detail=ReviewMessages.not_found(review_id=review_id)) from None
+            raise NotFoundError(**ReviewErrorDetails.not_found(id=review_id)) from None
 
         return db_review
 
@@ -77,7 +77,7 @@ class ReviewService(BaseService):
         db_review = await self.reviews.get_by_id(review_id)
 
         if db_review is None:
-            raise NotFoundError(detail=ReviewMessages.not_found(review_id=review_id)) from None
+            raise NotFoundError(**ReviewErrorDetails.not_found(id=review_id)) from None
 
         update_data = dto.model_dump(exclude_unset=True)
 
@@ -98,6 +98,6 @@ class ReviewService(BaseService):
         result = await self.reviews.delete(review_id)
 
         if not result.scalar():
-            raise NotFoundError(ReviewMessages.not_found(review_id=review_id)) from None
+            raise NotFoundError(**ReviewErrorDetails.not_found(id=review_id)) from None
 
         await self.session.commit()

@@ -4,14 +4,13 @@ from uuid import UUID
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions.error_messages import DirectorMessages, MovieMessages
 from app.core.exceptions.repositories import RepositoryException
 from app.core.exceptions.services import NotFoundError
 from app.database.models import Country, Genre, Movie
 from app.database.repositories.director import DirectorRepository
 from app.database.repositories.movie import MovieRepository
 from app.database.session import get_session
-from app.schemas.common import CollectionEnvelope
+from app.schemas.common import CollectionEnvelope, PaginationParams
 from app.schemas.movies import (
     CountryBase,
     GenreBase,
@@ -22,9 +21,9 @@ from app.schemas.movies import (
     MovieSortCriteria,
     MovieUpdate,
 )
-from app.schemas.pagination import PaginationParams
 
 from .base import BaseService
+from .error_details import DirectorErrorDetails, MovieErrorDetails
 from .integrity_maps import MOVIE_INTEGRITY_MAP
 
 
@@ -44,7 +43,7 @@ class MovieService(BaseService):
         countries = await self.movies.get_countries_by_id(country_ids)
 
         if len(countries) < len(country_ids):
-            raise NotFoundError(detail=MovieMessages.countries_not_found()) from None
+            raise NotFoundError(**MovieErrorDetails.countries_not_found()) from None
 
         return countries
 
@@ -55,7 +54,7 @@ class MovieService(BaseService):
         genres = await self.movies.get_genres_by_id(genre_ids)
 
         if len(genres) < len(genre_ids):
-            raise NotFoundError(detail=MovieMessages.genres_not_found()) from None
+            raise NotFoundError(**MovieErrorDetails.genres_not_found()) from None
 
         return genres
 
@@ -77,7 +76,7 @@ class MovieService(BaseService):
         db_movie = await self.movies.get_by_id_with_relations(movie_id)
 
         if db_movie is None:
-            raise NotFoundError(detail=MovieMessages.not_found(movie_id=movie_id)) from None
+            raise NotFoundError(**MovieErrorDetails.not_found(id=movie_id)) from None
 
         movie = MovieDetail.model_validate(db_movie)
 
@@ -87,7 +86,7 @@ class MovieService(BaseService):
         db_director = await self.directors.get_by_id(dto.director_id)
 
         if not db_director:
-            raise NotFoundError(DirectorMessages.not_found(director_id=dto.director_id)) from None
+            raise NotFoundError(**DirectorErrorDetails.not_found(id=dto.director_id)) from None
 
         genres = await self._get_validated_genres(dto.genre_ids)
         countries = await self._get_validated_countries(dto.country_ids)
@@ -114,7 +113,7 @@ class MovieService(BaseService):
         db_movie = await self.movies.get_by_id_with_relations(movie_id)
 
         if db_movie is None:
-            raise NotFoundError(detail=MovieMessages.not_found(movie_id=movie_id)) from None
+            raise NotFoundError(**MovieErrorDetails.not_found(id=movie_id)) from None
 
         genres = countries = None
 
@@ -141,7 +140,7 @@ class MovieService(BaseService):
         result = await self.movies.delete(movie_id)
 
         if not result.scalar():
-            raise NotFoundError(detail=MovieMessages.not_found(movie_id=movie_id)) from None
+            raise NotFoundError(**MovieErrorDetails.not_found(id=movie_id)) from None
 
         await self.session.commit()
 

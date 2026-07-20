@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped
 
-from app.core.exceptions.repositories import parse_integrity_error
+from app.database.exceptions_translator import parse_integrity_error
 
 
 @runtime_checkable

@@ -19,4 +19,4 @@ class BaseService:
         if error_factory:
             return error_factory(exc, context)
 
-        return UnexpectedServiceError(detail=f"Unhandled database constraint violated: {exc.constraint}")
+        return UnexpectedServiceError(internal_msg=f"Unhandled database constraint violated: {exc.constraint}")

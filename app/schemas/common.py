@@ -2,6 +2,7 @@ from datetime import date
 from typing import Generic, TypeVar
 from uuid import UUID
 
+from fastapi import Query
 from pydantic import BaseModel, ConfigDict
 
 T = TypeVar("T")
@@ -16,6 +17,11 @@ class CollectionEnvelope(BaseModel, Generic[T]):
     total: int
     limit: int | None = None
     offset: int | None = None
+
+
+class PaginationParams(BaseModel):
+    limit: int = Query(default=10, ge=1, le=100)
+    offset: int = Query(default=0, ge=0)
 
 
 class DirectorBrief(BaseModel):

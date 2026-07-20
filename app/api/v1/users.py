@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, status
 
 from app.schemas.common import ResponseEnvelope
+from app.schemas.errors import errors_model
 from app.schemas.users import UserBrief, UserDetail, UserUpdate, UserWithReviews
 from app.services.users import UserService
 
@@ -15,6 +16,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
     "/me",
     response_model=ResponseEnvelope[UserDetail],
     dependencies=[Depends(RoleBasedLimiter)],
+    responses=errors_model(400, 401, 422),
 )
 async def get_profile(
     request: Request,
@@ -30,6 +32,7 @@ async def get_profile(
     "/{user_id}",
     response_model=ResponseEnvelope[UserWithReviews],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
+    responses=errors_model(400, 404, 422),
 )
 async def get_user(
     request: Request,
@@ -45,6 +48,7 @@ async def get_user(
     "/me",
     response_model=ResponseEnvelope[UserBrief],
     dependencies=[Depends(RoleBasedLimiter)],
+    responses=errors_model(400, 401, 409, 422),
 )
 async def patch_user(
     request: Request,
@@ -61,6 +65,7 @@ async def patch_user(
     "/me",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
+    responses=errors_model(400, 401, 422),
 )
 async def delete_user(
     request: Request,

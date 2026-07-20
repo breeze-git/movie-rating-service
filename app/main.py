@@ -2,14 +2,14 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
 from app.api.v1 import v1_router
-from app.core.exceptions import register_exception_handler
+from app.core.exceptions import register_exception_handlers
 
 app = FastAPI(title="movie-review-platform-api")
 
 
 app.include_router(v1_router)
 
-register_exception_handler(app)
+register_exception_handlers(app)
 
 
 @app.get("/favicon.ico")

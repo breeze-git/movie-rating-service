@@ -1,13 +1,21 @@
-from .services import AlreadyExistsError, InvalidCredentialsError, NotFoundError
+from .services import (
+    AlreadyExistsError,
+    InvalidCredentialsError,
+    InvalidDataError,
+    NotFoundError,
+)
 
-ERROR_MAPPING = {
-    InvalidCredentialsError: {
-        "status_code": 401,
-        "detail": "Authentication failed",
-    },
-    NotFoundError: {
-        "status_code": 404,
-        "detail": "Requested resource was not found",
-    },
-    AlreadyExistsError: {"status_code": 409, "detail": "Resource already exists"},
-}
+
+class ErrorMapping:
+    app: dict[str, int] = {
+        InvalidDataError.base_code: 400,
+        InvalidCredentialsError.base_code: 401,
+        NotFoundError.base_code: 404,
+        AlreadyExistsError.base_code: 409,
+    }
+
+    http: dict[int, tuple[str, str]] = {
+        401: ("Unauthorized", "UNAUTHORIZED"),
+        403: ("Forbidden", "FORBIDDEN"),
+        429: ("Rate Limit Exceeded", "RATE_LIMIT_EXCEEDED"),
+    }

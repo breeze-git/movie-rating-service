@@ -4,9 +4,9 @@ from uuid import UUID
 import bcrypt
 import jwt
 
-from app.database.storage import REFRESH_TOKENS
-
 from .settings import settings
+
+REFRESH_TOKENS = {}
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 10
 REFRESH_TOKEN_EXPIRE_MINUTES = 3

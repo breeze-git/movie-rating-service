@@ -3,17 +3,16 @@ from uuid import UUID
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions.error_messages import DirectorMessages
 from app.core.exceptions.repositories import RepositoryException
 from app.core.exceptions.services import NotFoundError
 from app.database.models import Director
 from app.database.repositories.director import DirectorRepository
 from app.database.session import get_session
-from app.schemas.common import CollectionEnvelope, DirectorBrief
+from app.schemas.common import CollectionEnvelope, DirectorBrief, PaginationParams
 from app.schemas.directors import DirectorBase, DirectorDetail, DirectorUpdate
-from app.schemas.pagination import PaginationParams
 
 from .base import BaseService
+from .error_details import DirectorErrorDetails
 from .integrity_maps import DIRECTOR_INTEGRITY_MAP
 
 
@@ -29,7 +28,7 @@ class DirectorService(BaseService):
         db_director = await self.directors.get_by_id_with_relations(director_id)
 
         if db_director is None:
-            raise NotFoundError(detail=DirectorMessages.not_found(director_id=director_id)) from None
+            raise NotFoundError(**DirectorErrorDetails.not_found(id=director_id)) from None
 
         director = DirectorDetail.model_validate(db_director)
 
@@ -64,7 +63,7 @@ class DirectorService(BaseService):
         db_director = await self.directors.get_by_id(director_id)
 
         if db_director is None:
-            raise NotFoundError(detail=DirectorMessages.not_found(director_id=director_id)) from None
+            raise NotFoundError(**DirectorErrorDetails.not_found(id=director_id)) from None
 
         update_data = dto.model_dump(exclude_unset=True)
 
@@ -83,6 +82,6 @@ class DirectorService(BaseService):
         result = await self.directors.delete(director_id)
 
         if not result.scalar():
-            raise NotFoundError(detail=DirectorMessages.not_found(director_id=director_id)) from None
+            raise NotFoundError(**DirectorErrorDetails.not_found(id=director_id)) from None
 
         await self.session.commit()

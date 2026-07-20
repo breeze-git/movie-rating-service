@@ -2,12 +2,12 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ReviewPayload(BaseModel):
     message: str
-    rating: int | None
+    rating: int | None = Field(gt=0, le=10)
 
 
 class ReviewDetail(BaseModel):

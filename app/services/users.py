@@ -5,7 +5,6 @@ import bcrypt
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions.error_messages import UserMessages
 from app.core.exceptions.repositories import RepositoryException
 from app.core.exceptions.services import (
     AlreadyExistsError,
@@ -20,6 +19,7 @@ from app.schemas.auth import UserRegister
 from app.schemas.users import UserBrief, UserDetail, UserUpdate, UserWithReviews
 
 from .base import BaseService
+from .error_details import UserErrorDetails
 from .integrity_maps import USER_INTEGRITY_MAP
 
 
@@ -35,7 +35,7 @@ class UserService(BaseService):
         db_user = await self.users.get_by_id_with_relations(user_id)
 
         if db_user is None:
-            raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None
+            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
 
         user = UserWithReviews.model_validate(db_user)
 
@@ -45,7 +45,7 @@ class UserService(BaseService):
         db_user = await self.users.get_by_id_with_relations(user_id)
 
         if db_user is None:
-            raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None
+            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
 
         user = UserDetail.model_validate(db_user)
 
@@ -55,7 +55,7 @@ class UserService(BaseService):
         existing_user = await self.users.get_by_email(dto.email)
 
         if existing_user is not None:
-            raise AlreadyExistsError(detail=UserMessages.already_exists(email=dto.email)) from None
+            raise AlreadyExistsError(**UserErrorDetails.already_exists(email=dto.email)) from None
 
         hashed_password = get_hash(dto.password).decode("utf-8")
 
@@ -82,13 +82,15 @@ class UserService(BaseService):
         db_user = await self.users.get_by_email(email)
 
         if db_user is None:
-            raise NotFoundError(detail=UserMessages.not_found(email=email)) from None
+            raise InvalidCredentialsError(**UserErrorDetails.invalid_credentials(email=email)) from None
 
         user_pass = password.encode("utf-8")
         hashed_pass = db_user.hashed_password.encode("utf-8")
 
         if not bcrypt.checkpw(user_pass, hashed_pass):
-            raise InvalidCredentialsError() from None
+            raise InvalidCredentialsError(
+                **UserErrorDetails.invalid_credentials(email=email, pass_mismatch=True)
+            ) from None
 
         return db_user.id
 
@@ -96,7 +98,7 @@ class UserService(BaseService):
         roles = await self.users.get_roles(user_id)
 
         if not roles:
-            raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None
+            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
 
         return roles
 
@@ -104,7 +106,7 @@ class UserService(BaseService):
         perms = await self.users.get_permissions(user_id)
 
         if not perms:
-            raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None
+            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
 
         return perms
 
@@ -112,7 +114,7 @@ class UserService(BaseService):
         db_user = await self.users.get_by_id(user_id)
 
         if db_user is None:
-            raise NotFoundError(detail=UserMessages.not_found(user_id=user_id)) from None
+            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
 
         update_data = dto.model_dump(exclude_unset=True)
 
@@ -131,6 +133,6 @@ class UserService(BaseService):
         result = await self.users.delete(user_id)
 
         if not result.scalar():
-            raise NotFoundError(UserMessages.not_found(user_id=user_id)) from None
+            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
 
         await self.session.commit()

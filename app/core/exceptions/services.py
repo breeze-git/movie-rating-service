@@ -6,19 +6,27 @@ class ServiceException(AppException):
 
 
 class NotFoundError(ServiceException):
-    pass
+    title: str = "Resource Not Found"
+    public_msg: str = "Requested resource was not found"
+    base_code: str = "RESOURCE_NOT_FOUND"
 
 
 class AlreadyExistsError(ServiceException):
-    pass
+    title: str = "Conflict"
+    public_msg: str = "Resource already exists"
+    base_code: str = "RESOURCE_ALREADY_EXISTS"
 
 
 class InvalidCredentialsError(ServiceException):
-    pass
+    title: str = "Unauthorized"
+    public_msg: str = "Invalid email or password"
+    base_code: str = "INVALID_CREDENTIALS"
 
 
 class InvalidDataError(ServiceException):
-    pass
+    title: str = "Bad Request"
+    public_msg: str = "Invalid data"
+    base_code: str = "INVALID_DATA"
 
 
 class UnexpectedServiceError(ServiceException):

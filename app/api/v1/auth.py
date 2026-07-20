@@ -3,10 +3,10 @@ from secrets import compare_digest
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.core.security import create_tokens_pair
-from app.database.storage import REFRESH_TOKENS
+from app.core.security import REFRESH_TOKENS, create_tokens_pair
 from app.schemas.auth import RefreshToken, Tokens, UserRegister
 from app.schemas.common import ResponseEnvelope
+from app.schemas.errors import errors_model
 from app.schemas.users import UserBrief
 from app.services.users import UserService
 
@@ -20,6 +20,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
     response_model=ResponseEnvelope[UserBrief],
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
+    responses=errors_model(400, 409, 422),
 )
 async def register_user(
     request: Request,
@@ -35,6 +36,7 @@ async def register_user(
     "/login",
     response_model=ResponseEnvelope[Tokens],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
+    responses=errors_model(400, 401, 422),
 )
 async def login_user(
     request: Request,
@@ -52,6 +54,7 @@ async def login_user(
     "/refresh",
     response_model=ResponseEnvelope[Tokens],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
+    responses=errors_model(400, 401, 422),
 )
 async def refresh_token(request: Request, token: RefreshToken) -> ResponseEnvelope:
     payload = decode_token_safely(token.refresh_token)

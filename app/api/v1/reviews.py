@@ -2,8 +2,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Security, status
 
-from app.schemas.common import CollectionEnvelope, ResponseEnvelope
-from app.schemas.pagination import PaginationParams
+from app.schemas.common import CollectionEnvelope, PaginationParams, ResponseEnvelope
+from app.schemas.errors import errors_model
 from app.schemas.reviews import (
     ReviewDetail,
     ReviewPayload,
@@ -26,6 +26,7 @@ router = APIRouter(prefix="/reviews", tags=["Reviews"])
     "/{movie_id}",
     response_model=ResponseEnvelope[CollectionEnvelope[ReviewDetail]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
+    responses=errors_model(400, 404, 422),
 )
 async def get_reviews(
     request: Request,
@@ -51,6 +52,7 @@ async def get_reviews(
     response_model=ResponseEnvelope[ReviewDetail],
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(RoleBasedLimiter)],
+    responses=errors_model(400, 401, 403, 404, 409, 422),
 )
 async def post_review(
     request: Request,
@@ -68,6 +70,7 @@ async def post_review(
     "/{review_id}",
     response_model=ResponseEnvelope[ReviewDetail],
     dependencies=[Depends(RoleBasedLimiter)],
+    responses=errors_model(400, 401, 403, 404, 409, 422),
 )
 async def patch_review(
     request: Request,
@@ -85,6 +88,7 @@ async def patch_review(
     "/{review_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(RoleBasedLimiter)],
+    responses=errors_model(400, 401, 403, 404, 422),
 )
 async def delete_review(
     request: Request,
