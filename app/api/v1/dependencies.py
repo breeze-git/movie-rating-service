@@ -3,14 +3,21 @@ from secrets import compare_digest
 from uuid import UUID
 
 import jwt
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer, SecurityScopes
 from limits import parse, strategies
 from limits.storage import MemoryStorage
 
+from app.core.exceptions.http import (
+    InvalidTokenClaimsError,
+    InvalidTokenError,
+    NotEnoughRightsError,
+    RateLimitExceededError,
+    SessionExpiredError,
+)
 from app.core.settings import settings
-from app.services.reviews import ReviewService
-from app.services.users import UserService
+from app.services.reviews.service import ReviewService
+from app.services.users.service import UserService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
@@ -31,7 +38,11 @@ def verify_claims(payload: dict, req_token_type: str):
     token_type = payload.get("type")
 
     if user_id is None or token_type != req_token_type:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from None
+        raise InvalidTokenClaimsError(
+            user_id=user_id,
+            token_type=token_type,
+            req_token_type=req_token_type,
+        ) from None
 
 
 def get_user_id_from_token(payload: dict = Depends(get_current_user_claims)) -> UUID:
@@ -58,9 +69,10 @@ async def verify_review_permissions(
     user_permissions = await user_service.get_user_permissions(user_id)
 
     if not check_permissions(user_permissions, required_scopes):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough rights",
+        raise NotEnoughRightsError(
+            user_id=user_id,
+            user_permissions=list(user_permissions),
+            required_scopes=required_scopes,
         ) from None
 
     return user_id
@@ -77,9 +89,10 @@ async def verify_global_permissions(
     user_permissions = await user_service.get_user_permissions(user_id)
 
     if not check_permissions(user_permissions, required_scopes):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough rights",
+        raise NotEnoughRightsError(
+            user_id=user_id,
+            user_permissions=list(user_permissions),
+            required_scopes=required_scopes,
         ) from None
 
     return user_id
@@ -99,9 +112,9 @@ def decode_token_safely(token: str):
 
         return payload
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired") from None
+        raise SessionExpiredError(token=token) from None
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from None
+        raise InvalidTokenError(token=token) from None
 
 
 def get_token_payload(token: str) -> dict:
@@ -149,7 +162,8 @@ def check_limit(user_identifier: str, endpoint_name: str, limit: str) -> None:
     limit_item = parse(limit)
 
     if not moving_window.hit(limit_item, user_identifier, endpoint_name):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Rate limit exceeded: {limit}",
+        raise RateLimitExceededError(
+            limit=limit,
+            user_identifier=user_identifier,
+            retry_after=limit_item.get_expiry(),
         ) from None

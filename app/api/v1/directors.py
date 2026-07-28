@@ -9,10 +9,10 @@ from app.schemas.common import (
     ResponseEnvelope,
 )
 from app.schemas.directors import DirectorBase, DirectorDetail, DirectorUpdate
-from app.schemas.errors import errors_model
-from app.services.directors import DirectorService
+from app.services.directors.service import DirectorService
 
 from .dependencies import IPBasedLimiter, RoleBasedLimiter, verify_global_permissions
+from .openapi import errors_model
 
 router = APIRouter(prefix="/directors", tags=["Directors"])
 
@@ -21,11 +21,11 @@ router = APIRouter(prefix="/directors", tags=["Directors"])
     "",
     response_model=ResponseEnvelope[CollectionEnvelope[DirectorBrief]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
-    responses=errors_model(400, 422),
+    responses=errors_model(400, 422, 429),
 )
 async def get_directors(
     request: Request,
-    search: str | None = Query(default=None, description="Search director by fullname"),
+    search: str | None = Query(default=None, max_length=100, description="Search director by fullname"),
     pagination: PaginationParams = Depends(),
     service: DirectorService = Depends(),
 ) -> ResponseEnvelope:
@@ -42,7 +42,7 @@ async def get_directors(
     status_code=status.HTTP_201_CREATED,
     response_model=ResponseEnvelope[DirectorBrief],
     dependencies=[Depends(RoleBasedLimiter)],
-    responses=errors_model(400, 401, 403, 409, 422),
+    responses=errors_model(400, 401, 403, 409, 422, 429),
 )
 async def post_director(
     request: Request,
@@ -59,7 +59,7 @@ async def post_director(
     "/{director_id}",
     response_model=ResponseEnvelope[DirectorDetail],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
-    responses=errors_model(400, 404, 422),
+    responses=errors_model(400, 404, 422, 429),
 )
 async def get_director(request: Request, director_id: UUID, service: DirectorService = Depends()) -> ResponseEnvelope:
     director = await service.get_director_by_id(director_id)
@@ -71,7 +71,7 @@ async def get_director(request: Request, director_id: UUID, service: DirectorSer
     "/{director_id}",
     response_model=ResponseEnvelope[DirectorBrief],
     dependencies=[Depends(RoleBasedLimiter)],
-    responses=errors_model(400, 401, 403, 404, 409, 422),
+    responses=errors_model(400, 401, 403, 404, 409, 422, 429),
 )
 async def patch_director(
     request: Request,
@@ -89,7 +89,7 @@ async def patch_director(
     "/{director_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(RoleBasedLimiter)],
-    responses=errors_model(400, 401, 403, 404, 422),
+    responses=errors_model(400, 401, 403, 404, 422, 429),
 )
 async def delete_director(
     request: Request,

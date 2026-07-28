@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, Security, status
 
 from app.schemas.common import CollectionEnvelope, PaginationParams, ResponseEnvelope
-from app.schemas.errors import errors_model
 from app.schemas.movies import (
     CountryBase,
     GenreBase,
@@ -15,9 +14,10 @@ from app.schemas.movies import (
     MovieSortCriteria,
     MovieUpdate,
 )
-from app.services.movies import MovieService
+from app.services.movies.service import MovieService
 
 from .dependencies import IPBasedLimiter, RoleBasedLimiter, verify_global_permissions
+from .openapi import errors_model
 
 router = APIRouter(prefix="/movies", tags=["Movies"])
 
@@ -26,14 +26,14 @@ router = APIRouter(prefix="/movies", tags=["Movies"])
     "",
     response_model=ResponseEnvelope[CollectionEnvelope[MovieBrief]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
-    responses=errors_model(400, 422),
+    responses=errors_model(400, 422, 429),
 )
 async def get_movies(
     request: Request,
-    search: str | None = Query(default=None),
-    country_ids: Sequence[int] | None = Query(default=None),
-    genre_ids: Sequence[int] | None = Query(default=None),
-    director_ids: Sequence[UUID] | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
+    country_ids: Sequence[int] | None = Query(default=None, max_length=20),
+    genre_ids: Sequence[int] | None = Query(default=None, max_length=20),
+    director_ids: Sequence[UUID] | None = Query(default=None, max_length=20),
     sort: MovieSortCriteria = Depends(),
     service: MovieService = Depends(),
     pagination: PaginationParams = Depends(),
@@ -61,7 +61,7 @@ async def get_movies(
     "/genres",
     response_model=ResponseEnvelope[CollectionEnvelope[GenreBase]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
-    responses=errors_model(400),
+    responses=errors_model(400, 429),
 )
 async def get_genres(
     request: Request,
@@ -77,7 +77,7 @@ async def get_genres(
     "/countries",
     response_model=ResponseEnvelope[CollectionEnvelope[CountryBase]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
-    responses=errors_model(400),
+    responses=errors_model(400, 429),
 )
 async def get_countries(
     request: Request,
@@ -94,7 +94,7 @@ async def get_countries(
     status_code=status.HTTP_201_CREATED,
     response_model=ResponseEnvelope[MovieDetail],
     dependencies=[Depends(RoleBasedLimiter)],
-    responses=errors_model(400, 401, 403, 404, 409, 422),
+    responses=errors_model(400, 401, 403, 404, 409, 422, 429),
 )
 async def post_movie(
     request: Request,
@@ -111,7 +111,7 @@ async def post_movie(
     "/{movie_id}",
     response_model=ResponseEnvelope[MovieDetail],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
-    responses=errors_model(400, 404, 422),
+    responses=errors_model(400, 404, 422, 429),
 )
 async def get_movie(
     request: Request,
@@ -127,7 +127,7 @@ async def get_movie(
     "/{movie_id}",
     response_model=ResponseEnvelope[MovieDetail],
     dependencies=[Depends(RoleBasedLimiter)],
-    responses=errors_model(400, 401, 403, 404, 409, 422),
+    responses=errors_model(400, 401, 403, 404, 409, 422, 429),
 )
 async def patch_movie(
     request: Request,
@@ -145,7 +145,7 @@ async def patch_movie(
     "/{movie_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(RoleBasedLimiter)],
-    responses=errors_model(400, 401, 403, 404, 422),
+    responses=errors_model(400, 401, 403, 404, 422, 429),
 )
 async def delete_movie(
     request: Request,

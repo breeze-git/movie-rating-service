@@ -2,7 +2,9 @@ from collections.abc import Sequence
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.validators import NonEmptyString, YearEarlierThanCurrent
 
 from .common import DirectorBrief
 
@@ -27,25 +29,26 @@ class GenreBase(BaseModel):
 
 
 class MovieBase(BaseModel):
-    title: str
-    release_year: int
+    title: NonEmptyString = Field(max_length=50)
+    release_year: YearEarlierThanCurrent = Field(ge=1895)
 
 
 class MoviePayload(MovieBase):
-    director_id: UUID
-    description: str
-    country_ids: list[int]
-    genre_ids: list[int]
+    director_id: UUID = Field(max_length=36)
+    description: NonEmptyString = Field(min_length=10, max_length=3000)
+    country_ids: Sequence[int] = Field(min_length=1, max_length=10)
+    genre_ids: Sequence[int] = Field(min_length=1, max_length=10)
 
 
 class MovieUpdate(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    release_year: int | None = None
-    director_id: UUID | None = None
+    title: NonEmptyString | None = Field(default=None, max_length=50)
+    description: NonEmptyString | None = Field(default=None, max_length=3000)
+    release_year: YearEarlierThanCurrent | None = Field(default=None, ge=1895)
 
-    country_ids: Sequence[int] | None = None
-    genre_ids: Sequence[int] | None = None
+    director_id: UUID | None = Field(default=None, max_length=36)
+
+    country_ids: Sequence[int] | None = Field(default=None, max_length=10)
+    genre_ids: Sequence[int] | None = Field(default=None, max_length=10)
 
 
 class MovieBrief(MovieBase):

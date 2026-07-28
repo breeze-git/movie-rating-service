@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Sequence
 from uuid import UUID
 
@@ -5,37 +6,33 @@ import bcrypt
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions.repositories import RepositoryException
-from app.core.exceptions.services import (
-    AlreadyExistsError,
-    InvalidCredentialsError,
-    NotFoundError,
-)
+from app.core.exceptions.repository import RepoUniqueViolationError
 from app.core.security import get_hash
 from app.database.models import User
 from app.database.repositories.user import UserRepository
 from app.database.session import get_session
 from app.schemas.auth import UserRegister
 from app.schemas.users import UserBrief, UserDetail, UserUpdate, UserWithReviews
+from app.services.users.exceptions import (
+    InvalidCredentialsError,
+    UserAlreadyExistsError,
+    UserNotFoundError,
+)
 
-from .base import BaseService
-from .error_details import UserErrorDetails
-from .integrity_maps import USER_INTEGRITY_MAP
+logger = logging.getLogger(__name__)
 
 
-class UserService(BaseService):
-    _integrity_map = USER_INTEGRITY_MAP
-
+class UserService:
     def __init__(self, session: AsyncSession = Depends(get_session)):
-        self.users = UserRepository(session)
+        self.session = session
 
-        super().__init__(session)
+        self.users = UserRepository(session)
 
     async def get_user(self, user_id: UUID) -> UserWithReviews:
         db_user = await self.users.get_by_id_with_relations(user_id)
 
         if db_user is None:
-            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
+            raise UserNotFoundError(search_by="id", value=user_id) from None
 
         user = UserWithReviews.model_validate(db_user)
 
@@ -45,17 +42,15 @@ class UserService(BaseService):
         db_user = await self.users.get_by_id_with_relations(user_id)
 
         if db_user is None:
-            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
+            raise UserNotFoundError(search_by="id", value=user_id) from None
 
         user = UserDetail.model_validate(db_user)
 
         return user
 
     async def register_user(self, dto: UserRegister) -> UserBrief:
-        existing_user = await self.users.get_by_email(dto.email)
-
-        if existing_user is not None:
-            raise AlreadyExistsError(**UserErrorDetails.already_exists(email=dto.email)) from None
+        if self.users.exists_by_email(dto.email) is not None:
+            raise UserAlreadyExistsError(conflict_reason="email", value=dto.email) from None
 
         hashed_password = get_hash(dto.password).decode("utf-8")
 
@@ -69,12 +64,17 @@ class UserService(BaseService):
 
         try:
             await self.users.save(db_user)
-        except RepositoryException as e:
-            raise self._handle_repo_error(exc=e, **dto.model_dump()) from None
+        except RepoUniqueViolationError as e:
+            raise UserAlreadyExistsError(conflict_reason="username", value=dto.username) from e
 
         await self.session.commit()
 
         user = UserBrief.model_validate(db_user)
+
+        logger.info(
+            "User registered",
+            extra={"id": user.id, "email": user.email, "username": user.username},
+        )
 
         return user
 
@@ -82,15 +82,13 @@ class UserService(BaseService):
         db_user = await self.users.get_by_email(email)
 
         if db_user is None:
-            raise InvalidCredentialsError(**UserErrorDetails.invalid_credentials(email=email)) from None
+            raise InvalidCredentialsError(email=email) from None
 
         user_pass = password.encode("utf-8")
         hashed_pass = db_user.hashed_password.encode("utf-8")
 
         if not bcrypt.checkpw(user_pass, hashed_pass):
-            raise InvalidCredentialsError(
-                **UserErrorDetails.invalid_credentials(email=email, pass_mismatch=True)
-            ) from None
+            raise InvalidCredentialsError(email=email) from None
 
         return db_user.id
 
@@ -98,7 +96,7 @@ class UserService(BaseService):
         roles = await self.users.get_roles(user_id)
 
         if not roles:
-            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
+            raise UserNotFoundError(search_by="id", value=user_id) from None
 
         return roles
 
@@ -106,7 +104,7 @@ class UserService(BaseService):
         perms = await self.users.get_permissions(user_id)
 
         if not perms:
-            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
+            raise UserNotFoundError(search_by="id", value=user_id) from None
 
         return perms
 
@@ -114,14 +112,14 @@ class UserService(BaseService):
         db_user = await self.users.get_by_id(user_id)
 
         if db_user is None:
-            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
+            raise UserNotFoundError(search_by="id", value=user_id) from None
 
         update_data = dto.model_dump(exclude_unset=True)
 
         try:
             await self.users.update(db_user, update_data)
-        except RepositoryException as e:
-            raise self._handle_repo_error(exc=e, user_id=user_id, **update_data) from None
+        except RepoUniqueViolationError as e:
+            raise UserAlreadyExistsError(conflict_reason="username", value=update_data["username"]) from e
 
         await self.session.commit()
 
@@ -133,6 +131,11 @@ class UserService(BaseService):
         result = await self.users.delete(user_id)
 
         if not result.scalar():
-            raise NotFoundError(**UserErrorDetails.not_found(id=user_id)) from None
+            raise UserNotFoundError(search_by="id", value=user_id) from None
 
         await self.session.commit()
+
+        logger.info(
+            "User deleted",
+            extra={"id": user_id},
+        )

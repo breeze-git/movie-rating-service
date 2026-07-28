@@ -1,22 +1,38 @@
+import logging
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.schemas.errors import ProblemDetails, ValidationErrorItem
+from app.schemas.errors import (
+    ProblemDetails,
+    ValidationErrorItem,
+    ValidationErrorProblemDetails,
+)
 
-from .base import AppException
+from .base import AppError
 from .mapping import ErrorMapping
 
+logger = logging.getLogger(__name__)
 
-def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
-    status_code = ErrorMapping.app.get(exc.base_code, 400)
 
-    details = ProblemDetails(
-        title=exc.title,
-        status=status_code,
-        detail=exc.public_msg,
-        code=exc.code,
+def app_exception_handler(request: Request, exc: AppError) -> JSONResponse:
+    status_code, schema = ErrorMapping.get_status_code_and_schema(exc)
+
+    logger.warning(
+        "Application business exception occurred: %s",
+        exc.detail,
+        extra={
+            "http_status": status_code,
+            "error_code": exc.code,
+            "path": request.url.path,
+            "method": request.method,
+            **exc.extra,
+        },
     )
+
+    details = schema.model_validate(exc)
+    details.status = status_code
 
     return JSONResponse(
         status_code=status_code,
@@ -26,7 +42,19 @@ def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
 
 
 def validation_exception_handler(request: Request, exc: RequestValidationError):
-    details = ProblemDetails(
+    logger.warning(
+        "Request validation failed at entry point.",
+        extra={
+            "http_status": 422,
+            "error_code": "VALIDATION_ERROR",
+            "path": request.url.path,
+            "method": request.method,
+            "query_params": dict(request.query_params),
+            "invalid_params": exc.errors(),
+        },
+    )
+
+    details = ValidationErrorProblemDetails(
         title="Unprocessable Entity",
         status=422,
         detail="Invalid data",
@@ -42,7 +70,20 @@ def validation_exception_handler(request: Request, exc: RequestValidationError):
 
 
 def http_exception_handler(request: Request, exc: HTTPException):
-    title, code = ErrorMapping.http.get(exc.status_code, ("HTTP Error", "HTTP_ERROR"))
+    title, code = "HTTP Error", "HTTP_ERROR"
+
+    logger.warning(
+        "An HTTP Error occurred.",
+        extra={
+            "http_status": exc.status_code,
+            "error_code": code,
+            "path": request.url.path,
+            "method": request.method,
+            "query_params": dict(request.query_params),
+            "exception_detail": exc.detail,
+            "detail": exc.detail,
+        },
+    )
 
     details = ProblemDetails(
         title=title,
@@ -59,6 +100,22 @@ def http_exception_handler(request: Request, exc: HTTPException):
 
 
 def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    client_ip = request.client.host if request.client else "unknown"
+
+    logger.exception(
+        "An unhandled error occurred while processing the HTTP request.",
+        extra={
+            "http_status": 500,
+            "error_msg": str(exc),
+            "error_code": "INTERNAL_ERROR",
+            "path": request.url.path,
+            "method": request.method,
+            "query_params": dict(request.query_params),
+            "client_ip": client_ip,
+            "user_agent": request.headers.get("user-agent", "unknown"),
+        },
+    )
+
     details = ProblemDetails(
         title="Internal Server Error",
         status=500,
@@ -74,7 +131,7 @@ def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
 
 
 def register_exception_handlers(app: FastAPI):
-    app.add_exception_handler(AppException, app_exception_handler)  # type: ignore
+    app.add_exception_handler(AppError, app_exception_handler)  # type: ignore
     app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore
     app.add_exception_handler(Exception, global_exception_handler)  # type: ignore

@@ -1,11 +1,12 @@
+import logging
 from collections.abc import Sequence
 from uuid import UUID
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions.repositories import RepositoryException
-from app.core.exceptions.services import NotFoundError
+from app.core.exceptions.domain import DomainError
+from app.core.exceptions.repository import RepoUniqueViolationError
 from app.database.models import Country, Genre, Movie
 from app.database.repositories.director import DirectorRepository
 from app.database.repositories.movie import MovieRepository
@@ -21,20 +22,23 @@ from app.schemas.movies import (
     MovieSortCriteria,
     MovieUpdate,
 )
+from app.services.directors.exceptions import DirectorNotFoundError
+from app.services.movies.exceptions import (
+    CountriesNotFoundError,
+    GenresNotFoundError,
+    MovieAlreadyExistsError,
+    MovieNotFoundError,
+)
 
-from .base import BaseService
-from .error_details import DirectorErrorDetails, MovieErrorDetails
-from .integrity_maps import MOVIE_INTEGRITY_MAP
+logger = logging.getLogger(__name__)
 
 
-class MovieService(BaseService):
-    _integrity_map = MOVIE_INTEGRITY_MAP
-
+class MovieService:
     def __init__(self, session: AsyncSession = Depends(get_session)):
+        self.session = session
+
         self.movies = MovieRepository(session)
         self.directors = DirectorRepository(session)
-
-        super().__init__(session)
 
     async def _get_validated_countries(self, country_ids: Sequence[int]) -> Sequence[Country]:
         if not country_ids:
@@ -43,7 +47,7 @@ class MovieService(BaseService):
         countries = await self.movies.get_countries_by_id(country_ids)
 
         if len(countries) < len(country_ids):
-            raise NotFoundError(**MovieErrorDetails.countries_not_found()) from None
+            raise CountriesNotFoundError(country_ids) from None
 
         return countries
 
@@ -54,7 +58,7 @@ class MovieService(BaseService):
         genres = await self.movies.get_genres_by_id(genre_ids)
 
         if len(genres) < len(genre_ids):
-            raise NotFoundError(**MovieErrorDetails.genres_not_found()) from None
+            raise GenresNotFoundError(genre_ids) from None
 
         return genres
 
@@ -64,6 +68,8 @@ class MovieService(BaseService):
         sort: MovieSortCriteria,
         pagination: PaginationParams,
     ) -> CollectionEnvelope[MovieBrief]:
+        raise DomainError(detail="Something bad happens", user_id="bad_id", movie_id="id")
+
         movie_collection = await self.movies.get_movies(
             **filters.model_dump(),
             **sort.model_dump(),
@@ -76,7 +82,7 @@ class MovieService(BaseService):
         db_movie = await self.movies.get_by_id_with_relations(movie_id)
 
         if db_movie is None:
-            raise NotFoundError(**MovieErrorDetails.not_found(id=movie_id)) from None
+            raise MovieNotFoundError(movie_id) from None
 
         movie = MovieDetail.model_validate(db_movie)
 
@@ -86,7 +92,7 @@ class MovieService(BaseService):
         db_director = await self.directors.get_by_id(dto.director_id)
 
         if not db_director:
-            raise NotFoundError(**DirectorErrorDetails.not_found(id=dto.director_id)) from None
+            raise DirectorNotFoundError(dto.director_id) from None
 
         genres = await self._get_validated_genres(dto.genre_ids)
         countries = await self._get_validated_countries(dto.country_ids)
@@ -100,12 +106,19 @@ class MovieService(BaseService):
 
         try:
             await self.movies.save(db_movie)
-        except RepositoryException as e:
-            raise self._handle_repo_error(exc=e, **dto.model_dump()) from None
+        except RepoUniqueViolationError as e:
+            raise MovieAlreadyExistsError(
+                conflict_value=dto.model_dump(include={"title", "release_year", "director_id"})
+            ) from e
 
         await self.session.commit()
 
         movie = MovieDetail.model_validate(db_movie)
+
+        logger.info(
+            "Movie created",
+            extra={"id": movie.id},
+        )
 
         return movie
 
@@ -113,7 +126,11 @@ class MovieService(BaseService):
         db_movie = await self.movies.get_by_id_with_relations(movie_id)
 
         if db_movie is None:
-            raise NotFoundError(**MovieErrorDetails.not_found(id=movie_id)) from None
+            raise MovieNotFoundError(movie_id) from None
+
+        if dto.director_id:
+            if not await self.directors.exists_by_id(dto.director_id):
+                raise DirectorNotFoundError(dto.director_id)
 
         genres = countries = None
 
@@ -127,8 +144,10 @@ class MovieService(BaseService):
 
         try:
             await self.movies.update(db_movie, update_data, genres=genres, countries=countries)
-        except RepositoryException as e:
-            raise self._handle_repo_error(exc=e, movie_id=movie_id, **update_data) from None
+        except RepoUniqueViolationError as e:
+            raise MovieAlreadyExistsError(
+                conflict_value=dto.model_dump(include={"title", "release_year", "director_id"})
+            ) from e
 
         await self.session.commit()
 
@@ -140,7 +159,12 @@ class MovieService(BaseService):
         result = await self.movies.delete(movie_id)
 
         if not result.scalar():
-            raise NotFoundError(**MovieErrorDetails.not_found(id=movie_id)) from None
+            raise MovieNotFoundError(movie_id) from None
+
+        logger.info(
+            "Movie deleted",
+            extra={"id": movie_id},
+        )
 
         await self.session.commit()
 

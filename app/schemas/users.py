@@ -1,6 +1,8 @@
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.validators import NonEmptyString
 
 from .reviews import ReviewDetail
 
@@ -32,6 +34,6 @@ class UserDetail(UserWithReviews):
 
 
 class UserUpdate(BaseModel):
-    username: str | None = None
-    first_name: str | None = None
-    last_name: str | None = None
+    username: NonEmptyString | None = Field(default=None, max_length=50)
+    first_name: NonEmptyString | None = Field(default=None, max_length=50)
+    last_name: NonEmptyString | None = Field(default=None, max_length=50)

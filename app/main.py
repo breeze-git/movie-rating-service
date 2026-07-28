@@ -3,6 +3,9 @@ from fastapi.responses import FileResponse
 
 from app.api.v1 import v1_router
 from app.core.exceptions import register_exception_handlers
+from app.core.logger import setup_logger
+
+setup_logger()
 
 app = FastAPI(title="movie-review-platform-api")
 

@@ -4,10 +4,17 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.validators import NonEmptyString
+
 
 class ReviewPayload(BaseModel):
-    message: str
-    rating: int | None = Field(gt=0, le=10)
+    message: NonEmptyString = Field(min_length=10, max_length=400)
+    rating: int | None = Field(ge=1, le=10)
+
+
+class ReviewUpdate(BaseModel):
+    message: NonEmptyString | None = Field(default=None, min_length=10, max_length=400)
+    rating: int | None = Field(ge=1, le=10)
 
 
 class ReviewDetail(BaseModel):
@@ -31,8 +38,3 @@ class ReviewSortBy(str, Enum):
 class ReviewSortCriteria(BaseModel):
     sort_by: ReviewSortBy = ReviewSortBy.CREATION_DATE
     sort_desc: bool = False
-
-
-class ReviewUpdate(BaseModel):
-    message: str | None = None
-    rating: int | None = None

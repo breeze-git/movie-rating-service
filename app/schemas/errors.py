@@ -1,6 +1,41 @@
-from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
+
+
+class ProblemDetails(BaseModel):
+    type: str = "about:blank"
+    title: str
+    status: int = 400
+    detail: str
+
+    code: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NotFoundProblemDetails(ProblemDetails):
+    status: int = 404
+    search_by: str = "id"
+    search_value: str | UUID | int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AlreadyExistsProblemDetails(ProblemDetails):
+    status: int = 409
+    conflict_reason: str = "composite_key"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RateLimitExceededProblemDetails(ProblemDetails):
+    status: int = 429
+    limit: str
+    user_identifier: str | UUID
+    retry_after: int
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ValidationErrorItem(BaseModel):
@@ -11,16 +46,8 @@ class ValidationErrorItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ProblemDetails(BaseModel):
-    type: str = "about:blank"
-    title: str
-    status: int
-    detail: str
-
-    code: str
-
+class ValidationErrorProblemDetails(ProblemDetails):
+    status: int = 422
     invalid_params: list[ValidationErrorItem] | None = None
 
-
-def errors_model(*status_codes: int | str) -> dict[int | str, dict[str, Any]]:
-    return {code: {"model": ProblemDetails} for code in status_codes}
+    model_config = ConfigDict(from_attributes=True)

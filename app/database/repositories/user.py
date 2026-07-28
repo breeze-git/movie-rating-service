@@ -2,7 +2,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -21,6 +21,15 @@ class UserRepository(BaseRepository):
         user = await self.session.scalar(query)
 
         return user
+
+    async def exists_by_email(self, email: str) -> bool:
+        query = select(exists().where(User.email == email))
+
+        result = await self._execute(query)
+
+        existed = bool(result.scalar())
+
+        return existed
 
     async def get_by_id_with_relations(self, user_id: UUID) -> User | None:
         query = select(User).where(User.id == user_id).options(selectinload(User.reviews))
