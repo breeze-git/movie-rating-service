@@ -27,9 +27,9 @@ class UserRepository(BaseRepository):
 
         result = await self._execute(query)
 
-        existed = bool(result.scalar())
+        existed = result.scalar()
 
-        return existed
+        return bool(existed)
 
     async def get_by_id_with_relations(self, user_id: UUID) -> User | None:
         query = select(User).where(User.id == user_id).options(selectinload(User.reviews))
@@ -64,9 +64,9 @@ class UserRepository(BaseRepository):
         return result.all()
 
     async def get_default_roles(self) -> Sequence[Role]:
-        roles_ids = [2]
+        role_names = ["user"]
 
-        query = select(Role).where(Role.id.in_(roles_ids))
+        query = select(Role).where(Role.name.in_(role_names))
 
         result = await self.session.scalars(query)
 

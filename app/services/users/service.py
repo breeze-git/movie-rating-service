@@ -2,12 +2,11 @@ import logging
 from collections.abc import Sequence
 from uuid import UUID
 
-import bcrypt
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions.repository import RepoUniqueViolationError
-from app.core.security import get_hash
+from app.core.security import get_hash, verify_password
 from app.database.models import User
 from app.database.repositories.user import UserRepository
 from app.database.session import get_session
@@ -49,7 +48,7 @@ class UserService:
         return user
 
     async def register_user(self, dto: UserRegister) -> UserBrief:
-        if self.users.exists_by_email(dto.email) is not None:
+        if await self.users.exists_by_email(dto.email):
             raise UserAlreadyExistsError(conflict_reason="email", value=dto.email) from None
 
         hashed_password = get_hash(dto.password).decode("utf-8")
@@ -57,7 +56,7 @@ class UserService:
         default_roles = await self.users.get_default_roles()
 
         db_user = User(
-            **dto.model_dump(),
+            **dto.model_dump(exclude={"password"}),
             hashed_password=hashed_password,
             roles=default_roles,
         )
@@ -84,10 +83,7 @@ class UserService:
         if db_user is None:
             raise InvalidCredentialsError(email=email) from None
 
-        user_pass = password.encode("utf-8")
-        hashed_pass = db_user.hashed_password.encode("utf-8")
-
-        if not bcrypt.checkpw(user_pass, hashed_pass):
+        if not verify_password(password, db_user.hashed_password):
             raise InvalidCredentialsError(email=email) from None
 
         return db_user.id

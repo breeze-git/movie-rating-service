@@ -6,6 +6,7 @@ from app.schemas.errors import (
     ProblemDetails,
     RateLimitExceededProblemDetails,
 )
+from app.services.users.exceptions import InvalidCredentialsError
 
 
 class ErrorMapping:
@@ -18,6 +19,8 @@ class ErrorMapping:
             status_code, schema = 404, NotFoundProblemDetails
         elif isinstance(exc, AlreadyExistsError):
             status_code, schema = 409, AlreadyExistsProblemDetails
+        elif isinstance(exc, InvalidCredentialsError):
+            status_code, schema = 401, ProblemDetails
         elif isinstance(exc, RateLimitExceededError):
             status_code, schema = exc.status_code, RateLimitExceededProblemDetails
 

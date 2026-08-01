@@ -43,3 +43,14 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 start = "start:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+addopts = "-vv"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+
+
+

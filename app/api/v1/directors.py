@@ -47,7 +47,7 @@ async def get_directors(
 async def post_director(
     request: Request,
     payload: DirectorBase,
-    user_id: UUID = Security(verify_global_permissions, scopes=["directors:post"]),
+    user_id: UUID = Security(verify_global_permissions, scopes=["directors:create"]),
     service: DirectorService = Depends(),
 ) -> ResponseEnvelope:
     director = await service.create_director(payload)
@@ -77,7 +77,7 @@ async def patch_director(
     request: Request,
     director_id: UUID,
     payload: DirectorUpdate,
-    user_id: UUID = Security(verify_global_permissions, scopes=["directors:manage"]),
+    user_id: UUID = Security(verify_global_permissions, scopes=["directors:update"]),
     service: DirectorService = Depends(),
 ) -> ResponseEnvelope:
     director = await service.update_director(director_id, payload)

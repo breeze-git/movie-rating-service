@@ -16,7 +16,7 @@ def _check_no_strip_empty(value: str) -> str:
 
 
 def _validate_password(password: str) -> str:
-    PASSWORD_REGEX = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>])')
+    PASSWORD_REGEX = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[_!@#$%^&*(),.?":{}|<>])')
 
     if not PASSWORD_REGEX.match(password):
         raise ValueError(

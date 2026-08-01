@@ -76,7 +76,7 @@ async def patch_review(
     request: Request,
     review_id: UUID,
     payload: ReviewUpdate,
-    user_id: UUID = Security(verify_review_permissions, scopes=["reviews:manage"]),
+    user_id: UUID = Security(verify_review_permissions, scopes=["reviews:update"]),
     service: ReviewService = Depends(),
 ) -> ResponseEnvelope:
     review = await service.update_review(review_id, payload)

@@ -20,6 +20,10 @@ def get_hash(password: str) -> bytes:
     return hash
 
 
+def verify_password(password: str, hashed_password: str):
+    return bcrypt.checkpw(password.encode("utf-8"), hashed_password.encode("utf-8"))
+
+
 def set_access_token(data: dict) -> str:
     to_encode = data.copy()
 

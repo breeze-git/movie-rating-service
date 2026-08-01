@@ -99,7 +99,7 @@ async def get_countries(
 async def post_movie(
     request: Request,
     payload: MoviePayload,
-    user_id: UUID = Security(verify_global_permissions, scopes=["movies:post"]),
+    user_id: UUID = Security(verify_global_permissions, scopes=["movies:create"]),
     service: MovieService = Depends(),
 ) -> ResponseEnvelope:
     movie = await service.create_movie(payload)
@@ -133,7 +133,7 @@ async def patch_movie(
     request: Request,
     movie_id: UUID,
     payload: MovieUpdate,
-    user_id: UUID = Security(verify_global_permissions, scopes=["movies:manage"]),
+    user_id: UUID = Security(verify_global_permissions, scopes=["movies:update"]),
     service: MovieService = Depends(),
 ) -> ResponseEnvelope:
     movie = await service.update_movie(movie_id, payload)

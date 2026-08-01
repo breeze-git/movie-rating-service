@@ -89,7 +89,7 @@ class Country(Base):
     __tablename__ = "countries"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(30), unique=True)
+    name: Mapped[str] = mapped_column(String(50), unique=True)
 
     movies: Mapped[list["Movie"]] = relationship(
         secondary="country_movies", back_populates="countries", passive_deletes=True
@@ -109,7 +109,7 @@ class Genre(Base):
     __tablename__ = "genres"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(30), unique=True)
+    name: Mapped[str] = mapped_column(String(50), unique=True)
 
     movies: Mapped[list["Movie"]] = relationship(
         secondary="genre_movies", back_populates="genres", passive_deletes=True

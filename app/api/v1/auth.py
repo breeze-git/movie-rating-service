@@ -17,6 +17,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post(
     "/register",
+    name="register_user",
     response_model=ResponseEnvelope[UserBrief],
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
@@ -34,6 +35,7 @@ async def register_user(
 
 @router.post(
     "/login",
+    name="login_user",
     response_model=ResponseEnvelope[Tokens],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 401, 422, 429),
@@ -52,6 +54,7 @@ async def login_user(
 
 @router.post(
     "/refresh",
+    name="refresh_token",
     response_model=ResponseEnvelope[Tokens],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 401, 422, 429),

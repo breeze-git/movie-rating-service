@@ -48,6 +48,8 @@ class ValidationErrorItem(BaseModel):
 
 class ValidationErrorProblemDetails(ProblemDetails):
     status: int = 422
+    code: str = "VALIDATION_ERROR"
+
     invalid_params: list[ValidationErrorItem] | None = None
 
     model_config = ConfigDict(from_attributes=True)

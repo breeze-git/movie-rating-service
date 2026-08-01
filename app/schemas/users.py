@@ -17,6 +17,8 @@ class UserBrief(UserBase):
     last_name: str | None
     email: str
 
+    model_config = ConfigDict(from_attributes=True)
+
 
 class UserWithReviews(UserBase):
     id: UUID

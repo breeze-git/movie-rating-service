@@ -19,7 +19,7 @@ class UserRegister(UserBaseAuth):
 
 
 class RefreshToken(BaseModel):
-    refresh_token: str = Field(max_length=36)
+    refresh_token: str
 
 
 class Tokens(BaseModel):
