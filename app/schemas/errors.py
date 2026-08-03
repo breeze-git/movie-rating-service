@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -17,7 +18,7 @@ class ProblemDetails(BaseModel):
 class NotFoundProblemDetails(ProblemDetails):
     status: int = 404
     search_by: str = "id"
-    search_value: str | UUID | int
+    search_value: str | UUID | int | Sequence[str | UUID | int]
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -4,6 +4,7 @@ from httpx2 import AsyncClient
 from app.core.exceptions.http import InvalidTokenError
 from app.schemas.auth import Tokens
 from tests.conftest import URLPaths
+from tests.helpers import assert_error_response
 
 
 async def test_refresh_token_success(
@@ -28,9 +29,4 @@ async def test_refresh_token_success(
 async def test_invalid_refresh_token_fail(api_client: AsyncClient, endp_urls: URLPaths) -> None:
     response = await api_client.post(endp_urls.refresh_token, json={"refresh_token": "invalid_refresh_token"})
 
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
-
-    raw_json = response.json()
-
-    assert raw_json["status"] == status.HTTP_401_UNAUTHORIZED
-    assert raw_json["code"] == InvalidTokenError.code
+    assert_error_response(response, status.HTTP_401_UNAUTHORIZED, InvalidTokenError.code)

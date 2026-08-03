@@ -91,6 +91,7 @@ async def get_countries(
 
 @router.post(
     "",
+    name="create_movie",
     status_code=status.HTTP_201_CREATED,
     response_model=ResponseEnvelope[MovieDetail],
     dependencies=[Depends(RoleBasedLimiter)],

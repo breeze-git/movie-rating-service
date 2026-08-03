@@ -20,6 +20,8 @@ from app.main import app
 
 pytest_plugins = [
     "tests.fixtures.users",
+    "tests.fixtures.movies",
+    "tests.fixtures.directors",
 ]
 
 
@@ -28,6 +30,7 @@ class URLPaths:
     register_user: str = app.url_path_for("register_user")
     login_user: str = app.url_path_for("login_user")
     refresh_token: str = app.url_path_for("refresh_token")
+    create_movie: str = app.url_path_for("create_movie")
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -37,11 +40,9 @@ async def endp_urls() -> URLPaths:
 
 @pytest_asyncio.fixture(scope="session")
 async def engine() -> AsyncGenerator[AsyncEngine]:
-    engine = create_async_engine(settings.test_database_url, echo=True)
+    engine = create_async_engine(settings.database_url, echo=True)
 
     alembic_cfg = Config("alembic.ini")
-
-    alembic_cfg.set_main_option("sqlalchemy.url", settings.test_database_url)
 
     await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
 
@@ -91,3 +92,15 @@ async def api_client(session_override) -> AsyncGenerator[AsyncClient]:
         base_url="http://127.0.0.1:8000",
     ) as ac:
         yield ac
+
+
+@pytest_asyncio.fixture
+async def user_client(api_client, user_tokens) -> AsyncGenerator[AsyncClient]:
+    api_client.headers["Authorization"] = f"{user_tokens.token_type} {user_tokens.access_token}"
+    yield api_client
+
+
+@pytest_asyncio.fixture
+async def admin_client(api_client, admin_tokens) -> AsyncGenerator[AsyncClient]:
+    api_client.headers["Authorization"] = f"{admin_tokens.token_type} {admin_tokens.access_token}"
+    yield api_client

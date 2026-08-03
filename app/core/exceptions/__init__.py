@@ -36,7 +36,7 @@ def app_exception_handler(request: Request, exc: AppError) -> JSONResponse:
 
     return JSONResponse(
         status_code=status_code,
-        content=details.model_dump(),
+        content=details.model_dump(mode="json"),
         headers={"Content-Type": "application/problem+json"},
     )
 
@@ -64,7 +64,7 @@ def validation_exception_handler(request: Request, exc: RequestValidationError):
 
     return JSONResponse(
         status_code=422,
-        content=details.model_dump(),
+        content=details.model_dump(mode="json"),
         headers={"Content-Type": "application/problem+json"},
     )
 
@@ -94,7 +94,7 @@ def http_exception_handler(request: Request, exc: HTTPException):
 
     return JSONResponse(
         status_code=exc.status_code,
-        content=details.model_dump(),
+        content=details.model_dump(mode="json"),
         headers={"Content-Type": "application/problem+json"},
     )
 
@@ -125,7 +125,7 @@ def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
 
     return JSONResponse(
         status_code=500,
-        content=details.model_dump(),
+        content=details.model_dump(mode="json"),
         headers={"Content-Type": "application/problem+json"},
     )
 

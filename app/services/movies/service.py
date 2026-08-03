@@ -5,7 +5,6 @@ from uuid import UUID
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions.domain import DomainError
 from app.core.exceptions.repository import RepoUniqueViolationError
 from app.database.models import Country, Genre, Movie
 from app.database.repositories.director import DirectorRepository
@@ -68,8 +67,6 @@ class MovieService:
         sort: MovieSortCriteria,
         pagination: PaginationParams,
     ) -> CollectionEnvelope[MovieBrief]:
-        raise DomainError(detail="Something bad happens", user_id="bad_id", movie_id="id")
-
         movie_collection = await self.movies.get_movies(
             **filters.model_dump(),
             **sort.model_dump(),

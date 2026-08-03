@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.validators import NonEmptyString, YearEarlierThanCurrent
+from app.schemas.validators import NonEmptyString, ValidReleaseYear
 
 from .common import DirectorBrief
 
@@ -30,11 +30,11 @@ class GenreBase(BaseModel):
 
 class MovieBase(BaseModel):
     title: NonEmptyString = Field(max_length=50)
-    release_year: YearEarlierThanCurrent = Field(ge=1895)
+    release_year: ValidReleaseYear = Field(ge=1895)
 
 
 class MoviePayload(MovieBase):
-    director_id: UUID = Field(max_length=36)
+    director_id: UUID
     description: NonEmptyString = Field(min_length=10, max_length=3000)
     country_ids: Sequence[int] = Field(min_length=1, max_length=10)
     genre_ids: Sequence[int] = Field(min_length=1, max_length=10)
@@ -43,7 +43,7 @@ class MoviePayload(MovieBase):
 class MovieUpdate(BaseModel):
     title: NonEmptyString | None = Field(default=None, max_length=50)
     description: NonEmptyString | None = Field(default=None, max_length=3000)
-    release_year: YearEarlierThanCurrent | None = Field(default=None, ge=1895)
+    release_year: ValidReleaseYear | None = Field(default=None, ge=1895)
 
     director_id: UUID | None = Field(default=None, max_length=36)
 

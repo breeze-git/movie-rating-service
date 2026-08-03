@@ -10,6 +10,8 @@ class DomainError(AppError):
 
 class NotFoundError(DomainError):
     def __init__(self, search_value: str | UUID | int | Sequence[str | UUID | int]):
+        self.search_value = search_value
+
         super().__init__(
             search_value=search_value,
         )

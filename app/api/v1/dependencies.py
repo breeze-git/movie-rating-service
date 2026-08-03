@@ -133,6 +133,9 @@ class RoleBasedLimiter:
         payload: dict = Depends(get_current_user_claims),
         user_service: UserService = Depends(),
     ) -> None:
+        if settings.mode == "TEST":
+            return
+
         user_id = payload["sub"]
         user_roles = await user_service.get_user_roles(user_id)
 
@@ -159,6 +162,9 @@ class IPBasedLimiter:
 
 
 def check_limit(user_identifier: str, endpoint_name: str, limit: str) -> None:
+    if settings.mode == "TEST":
+        return
+
     limit_item = parse(limit)
 
     if not moving_window.hit(limit_item, user_identifier, endpoint_name):

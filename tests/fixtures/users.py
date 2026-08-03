@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 import pytest
+import pytest_asyncio
 from httpx2 import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,26 +42,56 @@ def create_user_in_db(db_session: AsyncSession) -> Callable:
     return _create_user
 
 
-@pytest.fixture
-async def registered_user(create_user_in_db: Callable, register_payload: UserRegister) -> UserRegister:
+@pytest_asyncio.fixture
+async def registered_user_payload(create_user_in_db: Callable, register_payload: UserRegister) -> UserRegister:
     await create_user_in_db(register_payload)
+
+    return register_payload
+
+
+@pytest_asyncio.fixture
+async def registered_admin_payload(create_user_in_db: Callable, register_payload: UserRegister) -> UserRegister:
+    await create_user_in_db(register_payload, roles=("admin",))
+
     return register_payload
 
 
 @pytest.fixture
-async def user_tokens(
+def login_user(
     api_client: AsyncClient,
-    registered_user: UserRegister,
+) -> Callable:
+    async def _login(
+        payload: UserRegister,
+    ):
+        login_data = {
+            "username": payload.email,
+            "password": payload.password,
+        }
+
+        endpoint_url = app.url_path_for("login_user")
+
+        response = await api_client.post(endpoint_url, data=login_data)
+
+        return response.json()["data"]
+
+    return _login
+
+
+@pytest_asyncio.fixture
+async def user_tokens(
+    registered_user_payload: UserRegister,
+    login_user: Callable,
 ) -> Tokens:
-    login_data = {
-        "username": registered_user.email,
-        "password": registered_user.password,
-    }
+    tokens_raw = await login_user(registered_user_payload)
 
-    endpoint_url = app.url_path_for("login_user")
+    return Tokens.model_validate(tokens_raw)
 
-    response = await api_client.post(endpoint_url, data=login_data)
 
-    tokens_raw = response.json()["data"]
+@pytest_asyncio.fixture
+async def admin_tokens(
+    registered_admin_payload: UserRegister,
+    login_user: Callable,
+) -> Tokens:
+    tokens_raw = await login_user(registered_admin_payload)
 
     return Tokens.model_validate(tokens_raw)

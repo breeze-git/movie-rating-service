@@ -43,13 +43,13 @@ def _validate_age_limit(min_age: int) -> Callable:
 def _validate_release_year(release_year: int) -> int:
     year = date.today().year
 
-    if release_year > year:
-        raise ValueError("The year must be prior to the current year.")
+    if release_year >= year:
+        raise ValueError("The year must be prior or equal to the current year.")
 
     return release_year
 
 
 NonEmptyString = Annotated[str, AfterValidator(_check_no_strip_empty)]
 ValidPassword = Annotated[str, AfterValidator(_validate_password)]
-YearEarlierThanCurrent = Annotated[int, AfterValidator(_validate_release_year)]
+ValidReleaseYear = Annotated[int, AfterValidator(_validate_release_year)]
 Over7YearsOld = Annotated[date, AfterValidator(_validate_age_limit(7))]

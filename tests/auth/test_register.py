@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import verify_password
 from app.database.models import User
 from app.schemas.auth import UserRegister
-from app.schemas.errors import AlreadyExistsProblemDetails
 from app.schemas.users import UserBrief
 from app.services.users.exceptions import UserAlreadyExistsError
 from tests.conftest import URLPaths
+from tests.helpers import assert_error_response, assert_validation_error
 
 
 async def test_register_success(
@@ -49,21 +49,19 @@ async def test_register_success(
 
 async def test_duplicate_email(
     api_client: AsyncClient,
-    registered_user: UserRegister,
+    registered_user_payload: UserRegister,
     endp_urls: URLPaths,
 ) -> None:
-    response = await api_client.post(endp_urls.register_user, json=registered_user.model_dump(mode="json"))
+    response = await api_client.post(
+        endp_urls.register_user,
+        json=registered_user_payload.model_dump(mode="json"),
+    )
 
-    assert response.status_code == status.HTTP_409_CONFLICT
+    assert_error_response(response, status.HTTP_409_CONFLICT, UserAlreadyExistsError.code)
 
-    raw_json = response.json()
+    error_data = response.json()
 
-    assert raw_json["status"] == status.HTTP_409_CONFLICT
-    assert raw_json["conflict_reason"] == "email"
-
-    response_data = AlreadyExistsProblemDetails.model_validate(raw_json)
-
-    assert response_data.code == UserAlreadyExistsError.code
+    assert error_data["conflict_reason"] == "email"
 
 
 @pytest.mark.parametrize(
@@ -82,17 +80,10 @@ async def test_register_invalid_payload_fails(
     expected_error_loc: str,
     endp_urls: URLPaths,
 ) -> None:
-    payload_dict = register_payload.model_dump()
+    payload_dict = register_payload.model_dump(mode="json")
 
     payload_dict[invalid_field] = invalid_value
 
     response = await api_client.post(endp_urls.register_user, json=payload_dict)
 
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-
-    raw_json = response.json()
-
-    assert raw_json["status"] == status.HTTP_422_UNPROCESSABLE_CONTENT
-    assert raw_json["code"] == "VALIDATION_ERROR"
-
-    assert any(err["loc"][-1] == expected_error_loc for err in raw_json["invalid_params"])
+    assert_validation_error(response, expected_error_loc)
