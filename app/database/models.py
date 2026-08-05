@@ -23,7 +23,7 @@ class Movie(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     director_id: Mapped[UUID] = mapped_column(ForeignKey("directors.id", ondelete="CASCADE"), index=True)
-    title: Mapped[str] = mapped_column(String(50))
+    title: Mapped[str] = mapped_column(String(100))
     description: Mapped[str] = mapped_column(Text)
     release_year: Mapped[int] = mapped_column(index=True)
     rating: Mapped[float | None] = mapped_column(Numeric(3, 1), index=True)
@@ -60,8 +60,8 @@ class Director(Base):
     __tablename__ = "directors"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
-    first_name: Mapped[str] = mapped_column(String(50))
-    last_name: Mapped[str] = mapped_column(String(50))
+    first_name: Mapped[str] = mapped_column(String(100))
+    last_name: Mapped[str] = mapped_column(String(100))
     date_of_birth: Mapped[date]
 
     movies: Mapped[list["Movie"]] = relationship(back_populates="director")
@@ -128,8 +128,8 @@ class User(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, server_default=func.gen_random_uuid())
     username: Mapped[str] = mapped_column(String(50), unique=True)
-    first_name: Mapped[str | None] = mapped_column(String(50))
-    last_name: Mapped[str | None] = mapped_column(String(50))
+    first_name: Mapped[str | None] = mapped_column(String(100))
+    last_name: Mapped[str | None] = mapped_column(String(100))
     email: Mapped[str] = mapped_column(String(100), unique=True)
     hashed_password: Mapped[str] = mapped_column(String(60))
 

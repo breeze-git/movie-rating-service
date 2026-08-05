@@ -3,8 +3,7 @@ from typing import Any
 
 import pytest
 from fastapi import status
-from httpx2 import AsyncClient
-from sqlalchemy import select
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions.http import NotEnoughRightsError
@@ -16,20 +15,19 @@ from app.services.movies.exceptions import (
     GenresNotFoundError,
     MovieAlreadyExistsError,
 )
-from tests.conftest import URLPaths
+from tests.factories.movies import MoviePayloadFactory
 from tests.helpers import assert_error_response, assert_validation_error
+from tests.urls import urls
 
 
 async def test_create_movie_success(
     admin_client: AsyncClient,
     db_session: AsyncSession,
     created_director: Director,
-    movie_payload: MoviePayload,
-    endp_urls: URLPaths,
 ) -> None:
-    movie_payload.director_id = created_director.id
+    movie_payload = MoviePayloadFactory.build(director_id=created_director.id)
 
-    response = await admin_client.post(endp_urls.create_movie, json=movie_payload.model_dump(mode="json"))
+    response = await admin_client.post(urls.create_movie, json=movie_payload.model_dump(mode="json"))
 
     assert response.status_code == status.HTTP_201_CREATED
 
@@ -40,9 +38,7 @@ async def test_create_movie_success(
 
     db_session.expire_all()
 
-    query = select(Movie).where(Movie.id == response_data.id)
-
-    db_movie = await db_session.scalar(query)
+    db_movie = await db_session.get(Movie, response_data.id)
 
     assert db_movie is not None
     assert db_movie.title == movie_payload.title
@@ -52,10 +48,10 @@ async def test_create_movie_success(
 
 async def test_create_movie_not_found_director_fail(
     admin_client: AsyncClient,
-    movie_payload: MoviePayload,
-    endp_urls: URLPaths,
 ) -> None:
-    response = await admin_client.post(endp_urls.create_movie, json=movie_payload.model_dump(mode="json"))
+    movie_payload = MoviePayloadFactory.build()
+
+    response = await admin_client.post(urls.create_movie, json=movie_payload.model_dump(mode="json"))
 
     assert_error_response(response, status.HTTP_404_NOT_FOUND, DirectorNotFoundError.code)
 
@@ -67,10 +63,10 @@ async def test_create_movie_not_found_director_fail(
 
 async def test_create_movie_not_enough_rights_fail(
     user_client: AsyncClient,
-    movie_payload: MoviePayload,
-    endp_urls: URLPaths,
 ) -> None:
-    response = await user_client.post(endp_urls.create_movie, json=movie_payload.model_dump(mode="json"))
+    movie_payload = MoviePayloadFactory.build()
+
+    response = await user_client.post(urls.create_movie, json=movie_payload.model_dump(mode="json"))
 
     assert_error_response(response, status.HTTP_403_FORBIDDEN, NotEnoughRightsError.code)
 
@@ -78,9 +74,8 @@ async def test_create_movie_not_enough_rights_fail(
 async def test_create_movie_duplicate_fail(
     admin_client: AsyncClient,
     created_movie_payload: MoviePayload,
-    endp_urls: URLPaths,
 ) -> None:
-    response = await admin_client.post(endp_urls.create_movie, json=created_movie_payload.model_dump(mode="json"))
+    response = await admin_client.post(urls.create_movie, json=created_movie_payload.model_dump(mode="json"))
 
     assert_error_response(response, status.HTTP_409_CONFLICT, MovieAlreadyExistsError.code)
 
@@ -95,22 +90,20 @@ async def test_create_movie_duplicate_fail(
         ("genre_ids", [-1, -2, -3], GenresNotFoundError.code),
         ("country_ids", [-4, -5, -6], CountriesNotFoundError.code),
     ],
+    ids=["genre_ids", "country_ids"],
 )
 async def test_create_movie_not_found_genre_ids_country_ids_fails(
     admin_client: AsyncClient,
     created_director: Director,
-    movie_payload: MoviePayload,
     invalid_field: str,
     invalid_value: Any,
     expected_error_code: str,
-    endp_urls: URLPaths,
 ):
-    payload_dict = movie_payload.model_dump(mode="json")
+    payload_dict = MoviePayloadFactory.build(director_id=created_director.id).model_dump(mode="json")
 
-    payload_dict["director_id"] = str(created_director.id)
     payload_dict[invalid_field] = invalid_value
 
-    response = await admin_client.post(endp_urls.create_movie, json=payload_dict)
+    response = await admin_client.post(urls.create_movie, json=payload_dict)
 
     assert_error_response(response, status.HTTP_404_NOT_FOUND, expected_error_code)
 
@@ -130,19 +123,25 @@ async def test_create_movie_not_found_genre_ids_country_ids_fails(
         ("country_ids", [], "country_ids"),
         ("genre_ids", [], "genre_ids"),
     ],
+    ids=[
+        "director_id",
+        "title",
+        "description",
+        "release_year",
+        "country_ids",
+        "genre_ids",
+    ],
 )
 async def test_create_movie_invalid_payload_fails(
     admin_client: AsyncClient,
-    movie_payload: MoviePayload,
     invalid_field: str,
     invalid_value: Any,
     expected_error_loc: str,
-    endp_urls: URLPaths,
 ):
-    payload_dict = movie_payload.model_dump(mode="json")
+    payload_dict = MoviePayloadFactory.build().model_dump(mode="json")
 
     payload_dict[invalid_field] = invalid_value
 
-    response = await admin_client.post(endp_urls.create_movie, json=payload_dict)
+    response = await admin_client.post(urls.create_movie, json=payload_dict)
 
     assert_validation_error(response, expected_error_loc)

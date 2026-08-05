@@ -29,7 +29,7 @@ class GenreBase(BaseModel):
 
 
 class MovieBase(BaseModel):
-    title: NonEmptyString = Field(max_length=50)
+    title: NonEmptyString = Field(max_length=100)
     release_year: ValidReleaseYear = Field(ge=1895)
 
 

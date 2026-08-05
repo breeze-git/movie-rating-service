@@ -12,6 +12,8 @@ from .base import BaseRepository
 
 
 class UserRepository(BaseRepository):
+    model = User
+
     def __init__(self, session: AsyncSession):
         self.session = session
 

@@ -2,7 +2,8 @@ from collections.abc import Callable
 
 import pytest
 import pytest_asyncio
-from httpx2 import AsyncClient
+from fastapi import status
+from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,13 +14,8 @@ from app.schemas.auth import Tokens, UserRegister
 from tests.factories.users import UserRegisterFactory
 
 
-@pytest.fixture
-def register_payload():
-    return UserRegisterFactory.build()
-
-
-@pytest.fixture
-def create_user_in_db(db_session: AsyncSession) -> Callable:
+@pytest_asyncio.fixture
+async def create_user_in_db(db_session: AsyncSession) -> Callable:
     async def _create_user(payload: UserRegister, roles: tuple[str] = ("user",)) -> User:
         hashed_password = get_hash(payload.password).decode("utf-8")
 
@@ -43,17 +39,21 @@ def create_user_in_db(db_session: AsyncSession) -> Callable:
 
 
 @pytest_asyncio.fixture
-async def registered_user_payload(create_user_in_db: Callable, register_payload: UserRegister) -> UserRegister:
-    await create_user_in_db(register_payload)
+async def registered_user_payload(create_user_in_db: Callable) -> UserRegister:
+    payload = UserRegisterFactory.build()
 
-    return register_payload
+    await create_user_in_db(payload)
+
+    return payload
 
 
 @pytest_asyncio.fixture
-async def registered_admin_payload(create_user_in_db: Callable, register_payload: UserRegister) -> UserRegister:
-    await create_user_in_db(register_payload, roles=("admin",))
+async def registered_admin_payload(create_user_in_db: Callable) -> UserRegister:
+    payload = UserRegisterFactory.build()
 
-    return register_payload
+    await create_user_in_db(payload, roles=("admin",))
+
+    return payload
 
 
 @pytest.fixture
@@ -71,6 +71,8 @@ def login_user(
         endpoint_url = app.url_path_for("login_user")
 
         response = await api_client.post(endpoint_url, data=login_data)
+
+        assert response.status_code == status.HTTP_200_OK
 
         return response.json()["data"]
 

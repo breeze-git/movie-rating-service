@@ -1,24 +1,23 @@
 import pytest
 from fastapi import status
-from httpx2 import AsyncClient
+from httpx import AsyncClient
 
 from app.schemas.auth import Tokens, UserRegister
 from app.services.users.exceptions import InvalidCredentialsError
-from tests.conftest import URLPaths
 from tests.helpers import assert_error_response
+from tests.urls import urls
 
 
 async def test_login_success(
     api_client: AsyncClient,
     registered_user_payload: UserRegister,
-    endp_urls: URLPaths,
 ) -> None:
     login_data = {
         "username": registered_user_payload.email,
         "password": registered_user_payload.password,
     }
 
-    response = await api_client.post(endp_urls.login_user, data=login_data)
+    response = await api_client.post(urls.login_user, data=login_data)
 
     assert response.status_code == status.HTTP_200_OK
 
@@ -38,13 +37,12 @@ async def test_login_success(
         {"username": "unknown_user_email@test.com"},
         {"password": "invalid_password_123"},
     ],
-    ids=["unknown_email", "invalid_password"],
+    ids=["email", "password"],
 )
 async def test_login_invalid_credentials_fails(
     api_client: AsyncClient,
     registered_user_payload: UserRegister,
     credentials_override: dict,
-    endp_urls: URLPaths,
 ) -> None:
     login_data = {
         "username": registered_user_payload.email,
@@ -53,6 +51,6 @@ async def test_login_invalid_credentials_fails(
 
     login_data.update(credentials_override)
 
-    response = await api_client.post(endp_urls.login_user, data=login_data)
+    response = await api_client.post(urls.login_user, data=login_data)
 
     assert_error_response(response, status.HTTP_401_UNAUTHORIZED, InvalidCredentialsError.code)

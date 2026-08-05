@@ -24,6 +24,7 @@ router = APIRouter(prefix="/movies", tags=["Movies"])
 
 @router.get(
     "",
+    name="search_movies",
     response_model=ResponseEnvelope[CollectionEnvelope[MovieBrief]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 422, 429),
@@ -144,6 +145,7 @@ async def patch_movie(
 
 @router.delete(
     "/{movie_id}",
+    name="delete_movie",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(RoleBasedLimiter)],
     responses=errors_model(400, 401, 403, 404, 422, 429),

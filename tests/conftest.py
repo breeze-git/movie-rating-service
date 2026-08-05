@@ -1,9 +1,8 @@
 import asyncio
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass
 
 import pytest_asyncio
-from httpx2 import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
     AsyncEngine,
@@ -25,22 +24,9 @@ pytest_plugins = [
 ]
 
 
-@dataclass
-class URLPaths:
-    register_user: str = app.url_path_for("register_user")
-    login_user: str = app.url_path_for("login_user")
-    refresh_token: str = app.url_path_for("refresh_token")
-    create_movie: str = app.url_path_for("create_movie")
-
-
-@pytest_asyncio.fixture(scope="session")
-async def endp_urls() -> URLPaths:
-    return URLPaths()
-
-
 @pytest_asyncio.fixture(scope="session")
 async def engine() -> AsyncGenerator[AsyncEngine]:
-    engine = create_async_engine(settings.database_url, echo=True)
+    engine = create_async_engine(settings.database_url, echo=settings.debug)
 
     alembic_cfg = Config("alembic.ini")
 
@@ -81,7 +67,7 @@ async def session_override(db_session) -> AsyncGenerator[None]:
 
     yield
 
-    app.dependency_overrides.clear()
+    app.dependency_overrides.pop(get_session, None)
 
 
 @pytest_asyncio.fixture

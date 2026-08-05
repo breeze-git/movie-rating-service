@@ -1,6 +1,6 @@
 import pytest
 from fastapi import status
-from httpx2 import AsyncClient
+from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,17 +9,18 @@ from app.database.models import User
 from app.schemas.auth import UserRegister
 from app.schemas.users import UserBrief
 from app.services.users.exceptions import UserAlreadyExistsError
-from tests.conftest import URLPaths
+from tests.factories.users import UserRegisterFactory
 from tests.helpers import assert_error_response, assert_validation_error
+from tests.urls import urls
 
 
 async def test_register_success(
     api_client: AsyncClient,
     db_session: AsyncSession,
-    register_payload: UserRegister,
-    endp_urls: URLPaths,
 ) -> None:
-    response = await api_client.post(endp_urls.register_user, json=register_payload.model_dump(mode="json"))
+    payload = UserRegisterFactory.build()
+
+    response = await api_client.post(urls.register_user, json=payload.model_dump(mode="json"))
 
     assert response.status_code == status.HTTP_201_CREATED
 
@@ -30,30 +31,29 @@ async def test_register_success(
 
     user_response = UserBrief.model_validate(raw_json)
 
-    assert user_response.username == register_payload.username
-    assert user_response.email == register_payload.email
+    assert user_response.username == payload.username
+    assert user_response.email == payload.email
 
     db_session.expire_all()
 
-    query = select(User).where(User.email == register_payload.email)
+    query = select(User).where(User.email == payload.email)
 
     created_user = await db_session.scalar(query)
 
     assert created_user is not None
     assert created_user.id == user_response.id
-    assert created_user.username == register_payload.username
+    assert created_user.username == payload.username
 
-    assert created_user.hashed_password != register_payload.password
-    assert verify_password(register_payload.password, created_user.hashed_password)
+    assert created_user.hashed_password != payload.password
+    assert verify_password(payload.password, created_user.hashed_password)
 
 
 async def test_duplicate_email(
     api_client: AsyncClient,
     registered_user_payload: UserRegister,
-    endp_urls: URLPaths,
 ) -> None:
     response = await api_client.post(
-        endp_urls.register_user,
+        urls.register_user,
         json=registered_user_payload.model_dump(mode="json"),
     )
 
@@ -71,19 +71,18 @@ async def test_duplicate_email(
         ("password", "simplepassword", "password"),
         ("username", "", "username"),
     ],
+    ids=["email", "password", "username"],
 )
 async def test_register_invalid_payload_fails(
     api_client: AsyncClient,
-    register_payload: UserRegister,
     invalid_field: str,
     invalid_value: str,
     expected_error_loc: str,
-    endp_urls: URLPaths,
 ) -> None:
-    payload_dict = register_payload.model_dump(mode="json")
+    payload_dict = UserRegisterFactory.build().model_dump(mode="json")
 
     payload_dict[invalid_field] = invalid_value
 
-    response = await api_client.post(endp_urls.register_user, json=payload_dict)
+    response = await api_client.post(urls.register_user, json=payload_dict)
 
     assert_validation_error(response, expected_error_loc)

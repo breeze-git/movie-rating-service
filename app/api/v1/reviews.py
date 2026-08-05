@@ -49,6 +49,7 @@ async def get_reviews(
 
 @router.post(
     "/{movie_id}",
+    name="create_review",
     response_model=ResponseEnvelope[ReviewDetail],
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(RoleBasedLimiter)],

@@ -36,8 +36,8 @@ def upgrade() -> None:
         sa.Column(
             "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
         ),
-        sa.Column("first_name", sa.String(length=50), nullable=False),
-        sa.Column("last_name", sa.String(length=50), nullable=False),
+        sa.Column("first_name", sa.String(length=100), nullable=False),
+        sa.Column("last_name", sa.String(length=100), nullable=False),
         sa.Column("date_of_birth", sa.Date(), nullable=False),
         sa.CheckConstraint(
             "EXTRACT(YEAR FROM AGE(date_of_birth)) > 7", name="check_min_director_age"
@@ -84,8 +84,8 @@ def upgrade() -> None:
             "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
         ),
         sa.Column("username", sa.String(length=50), nullable=False),
-        sa.Column("first_name", sa.String(length=50), nullable=True),
-        sa.Column("last_name", sa.String(length=50), nullable=True),
+        sa.Column("first_name", sa.String(length=100), nullable=True),
+        sa.Column("last_name", sa.String(length=100), nullable=True),
         sa.Column("email", sa.String(length=100), nullable=False),
         sa.Column("hashed_password", sa.String(length=60), nullable=False),
         sa.PrimaryKeyConstraint("id"),
@@ -98,7 +98,7 @@ def upgrade() -> None:
             "id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False
         ),
         sa.Column("director_id", sa.Uuid(), nullable=False),
-        sa.Column("title", sa.String(length=50), nullable=False),
+        sa.Column("title", sa.String(length=100), nullable=False),
         sa.Column("description", sa.Text(), nullable=False),
         sa.Column("release_year", sa.Integer(), nullable=False),
         sa.Column("rating", sa.Numeric(precision=3, scale=1), nullable=True),

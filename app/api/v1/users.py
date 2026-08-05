@@ -46,6 +46,7 @@ async def get_user(
 
 @router.patch(
     "/me",
+    name="update_user",
     response_model=ResponseEnvelope[UserBrief],
     dependencies=[Depends(RoleBasedLimiter)],
     responses=errors_model(400, 401, 409, 422, 429),

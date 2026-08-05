@@ -1,5 +1,5 @@
 from fastapi import status
-from httpx2 import Response
+from httpx import Response
 
 
 def assert_validation_error(response: Response, expected_error_loc: str):
@@ -7,7 +7,7 @@ def assert_validation_error(response: Response, expected_error_loc: str):
 
     data = response.json()
 
-    assert any(err["loc"][-1] == expected_error_loc for err in data["invalid_params"])
+    assert any(expected_error_loc in err["loc"] for err in data["invalid_params"])
 
 
 def assert_error_response(response: Response, expected_status: int, expected_code: str) -> None:
