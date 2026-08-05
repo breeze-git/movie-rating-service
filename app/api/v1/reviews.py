@@ -24,6 +24,7 @@ router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
 @router.get(
     "/{movie_id}",
+    summary="List reviews",
     response_model=ResponseEnvelope[CollectionEnvelope[ReviewDetail]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 404, 422, 429),
@@ -50,6 +51,7 @@ async def get_reviews(
 @router.post(
     "/{movie_id}",
     name="create_review",
+    summary="Create a review",
     response_model=ResponseEnvelope[ReviewDetail],
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(RoleBasedLimiter)],
@@ -69,6 +71,7 @@ async def post_review(
 
 @router.patch(
     "/{review_id}",
+    summary="Update a review",
     response_model=ResponseEnvelope[ReviewDetail],
     dependencies=[Depends(RoleBasedLimiter)],
     responses=errors_model(400, 401, 403, 404, 409, 422, 429),
@@ -87,6 +90,7 @@ async def patch_review(
 
 @router.delete(
     "/{review_id}",
+    summary="Delete a review",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(RoleBasedLimiter)],
     responses=errors_model(400, 401, 403, 404, 422, 429),

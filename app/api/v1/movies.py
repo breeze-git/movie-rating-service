@@ -25,6 +25,11 @@ router = APIRouter(prefix="/movies", tags=["Movies"])
 @router.get(
     "",
     name="search_movies",
+    summary="Search movies",
+    description="""Searches movies using the provided filters.
+
+All filters are optional and combined using logical AND.
+Supports pagination with `limit` and `offset`.""",
     response_model=ResponseEnvelope[CollectionEnvelope[MovieBrief]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 422, 429),
@@ -60,6 +65,7 @@ async def get_movies(
 
 @router.get(
     "/genres",
+    summary="List genres",
     response_model=ResponseEnvelope[CollectionEnvelope[GenreBase]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 429),
@@ -76,6 +82,7 @@ async def get_genres(
 
 @router.get(
     "/countries",
+    summary="List countries",
     response_model=ResponseEnvelope[CollectionEnvelope[CountryBase]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 429),
@@ -93,6 +100,8 @@ async def get_countries(
 @router.post(
     "",
     name="create_movie",
+    summary="Create a movie",
+    description="Only administrators can perform this operation.",
     status_code=status.HTTP_201_CREATED,
     response_model=ResponseEnvelope[MovieDetail],
     dependencies=[Depends(RoleBasedLimiter)],
@@ -111,6 +120,7 @@ async def post_movie(
 
 @router.get(
     "/{movie_id}",
+    summary="Get movie by ID",
     response_model=ResponseEnvelope[MovieDetail],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 404, 422, 429),
@@ -127,6 +137,8 @@ async def get_movie(
 
 @router.patch(
     "/{movie_id}",
+    summary="Update a movie",
+    description="Only administrators can perform this operation.",
     response_model=ResponseEnvelope[MovieDetail],
     dependencies=[Depends(RoleBasedLimiter)],
     responses=errors_model(400, 401, 403, 404, 409, 422, 429),
@@ -146,6 +158,8 @@ async def patch_movie(
 @router.delete(
     "/{movie_id}",
     name="delete_movie",
+    summary="Delete a movie",
+    description="Only administrators can perform this operation.",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(RoleBasedLimiter)],
     responses=errors_model(400, 401, 403, 404, 422, 429),

@@ -19,6 +19,7 @@ router = APIRouter(prefix="/directors", tags=["Directors"])
 
 @router.get(
     "",
+    summary="Search directors",
     response_model=ResponseEnvelope[CollectionEnvelope[DirectorBrief]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 422, 429),
@@ -39,6 +40,8 @@ async def get_directors(
 
 @router.post(
     "",
+    summary="Create a director",
+    description="Only administrators can perform this operation.",
     status_code=status.HTTP_201_CREATED,
     response_model=ResponseEnvelope[DirectorBrief],
     dependencies=[Depends(RoleBasedLimiter)],
@@ -57,6 +60,7 @@ async def post_director(
 
 @router.get(
     "/{director_id}",
+    summary="Get director by ID",
     response_model=ResponseEnvelope[DirectorDetail],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 404, 422, 429),
@@ -69,6 +73,8 @@ async def get_director(request: Request, director_id: UUID, service: DirectorSer
 
 @router.patch(
     "/{director_id}",
+    summary="Update a director",
+    description="Only administrators can perform this operation.",
     response_model=ResponseEnvelope[DirectorBrief],
     dependencies=[Depends(RoleBasedLimiter)],
     responses=errors_model(400, 401, 403, 404, 409, 422, 429),
@@ -87,6 +93,8 @@ async def patch_director(
 
 @router.delete(
     "/{director_id}",
+    summary="Delete a director",
+    description="Only administrators can perform this operation.",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(RoleBasedLimiter)],
     responses=errors_model(400, 401, 403, 404, 422, 429),

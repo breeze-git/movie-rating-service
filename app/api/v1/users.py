@@ -14,6 +14,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get(
     "/me",
+    summary="Get current user",
     response_model=ResponseEnvelope[UserDetail],
     dependencies=[Depends(RoleBasedLimiter)],
     responses=errors_model(400, 401, 422, 429),
@@ -30,6 +31,7 @@ async def get_profile(
 
 @router.get(
     "/{user_id}",
+    summary="Get user by ID",
     response_model=ResponseEnvelope[UserWithReviews],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 404, 422, 429),
@@ -47,6 +49,7 @@ async def get_user(
 @router.patch(
     "/me",
     name="update_user",
+    summary="Update current user",
     response_model=ResponseEnvelope[UserBrief],
     dependencies=[Depends(RoleBasedLimiter)],
     responses=errors_model(400, 401, 409, 422, 429),
@@ -64,6 +67,7 @@ async def patch_user(
 
 @router.delete(
     "/me",
+    summary="Delete current user",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 401, 422, 429),
