@@ -8,9 +8,6 @@ from .settings import settings
 
 REFRESH_TOKENS = {}
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 10
-REFRESH_TOKEN_EXPIRE_MINUTES = 3
-
 
 def get_hash(password: str) -> bytes:
     bytes = password.encode("utf-8")
@@ -28,7 +25,7 @@ def set_access_token(data: dict) -> str:
     to_encode = data.copy()
 
     utc_now = datetime.now(UTC)
-    expire_at = utc_now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire_at = utc_now + timedelta(minutes=settings.access_token_expire_minutes)
 
     to_encode.update({"exp": expire_at, "type": "access"})
 
@@ -41,7 +38,7 @@ def set_refresh_token(data: dict) -> str:
     to_encode = data.copy()
 
     utc_now = datetime.now(UTC)
-    expire_at = utc_now + timedelta(minutes=REFRESH_TOKEN_EXPIRE_MINUTES)
+    expire_at = utc_now + timedelta(days=settings.refresh_token_expire_days)
 
     to_encode.update({"exp": expire_at, "type": "refresh"})
 
