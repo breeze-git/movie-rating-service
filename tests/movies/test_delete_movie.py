@@ -16,13 +16,15 @@ async def test_delete_movie_success(
     admin_client: AsyncClient,
     created_movie: Movie,
 ):
-    response = await admin_client.delete(urls.delete_movie(created_movie.id))
+    movie_id = created_movie.id
+
+    response = await admin_client.delete(urls.delete_movie(movie_id))
 
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
-    db_session.expire_all()
+    db_session.expire(created_movie)
 
-    result = await db_session.get(Movie, created_movie.id)
+    result = await db_session.get(Movie, movie_id)
 
     assert result is None
 

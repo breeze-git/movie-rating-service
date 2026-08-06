@@ -26,7 +26,7 @@ async def create_movie_in_db(db_session: AsyncSession) -> Callable:
 
         db_session.add(db_movie)
 
-        await db_session.commit()
+        await db_session.flush()
 
         return db_movie
 
@@ -35,13 +35,16 @@ async def create_movie_in_db(db_session: AsyncSession) -> Callable:
 
 @pytest_asyncio.fixture
 async def created_movie_payload(
+    db_session: AsyncSession,
     created_director: Director,
     create_movie_in_db: Callable,
 ) -> MoviePayload:
     movie_payload = MoviePayloadFactory.build()
     movie_payload.director_id = created_director.id
 
-    await create_movie_in_db(movie_payload)
+    db_movie = await create_movie_in_db(movie_payload)
+
+    db_session.expunge(db_movie.director)
 
     return movie_payload
 

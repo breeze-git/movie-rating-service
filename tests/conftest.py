@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
@@ -14,7 +15,7 @@ from sqlalchemy.ext.asyncio import (
 from alembic import command
 from alembic.config import Config
 from app.core.settings import settings
-from app.database.session import get_session
+from app.database.session import get_session_maker
 from app.main import app
 
 pytest_plugins = [
@@ -50,28 +51,38 @@ async def db_connection(engine: AsyncEngine) -> AsyncGenerator[AsyncConnection]:
             await transaction.rollback()
 
 
-@pytest_asyncio.fixture
-async def db_session(db_connection) -> AsyncGenerator[AsyncSession]:
-    Session = async_sessionmaker(bind=db_connection, expire_on_commit=False)
+@pytest.fixture
+def test_session_maker(
+    db_connection: AsyncConnection,
+) -> async_sessionmaker[AsyncSession]:
+    return async_sessionmaker(
+        bind=db_connection,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
 
-    async with Session() as session:
+
+@pytest_asyncio.fixture
+async def db_session(
+    test_session_maker: async_sessionmaker[AsyncSession],
+) -> AsyncGenerator[AsyncSession]:
+    async with test_session_maker() as session:
         yield session
 
 
 @pytest_asyncio.fixture
-async def session_override(db_session) -> AsyncGenerator[None]:
-    async def _get_test_session():
-        yield db_session
-
-    app.dependency_overrides[get_session] = _get_test_session
+async def session_maker_override(
+    test_session_maker: async_sessionmaker[AsyncSession],
+) -> AsyncGenerator[None]:
+    app.dependency_overrides[get_session_maker] = lambda: test_session_maker
 
     yield
 
-    app.dependency_overrides.pop(get_session, None)
+    app.dependency_overrides.clear()
 
 
 @pytest_asyncio.fixture
-async def api_client(session_override) -> AsyncGenerator[AsyncClient]:
+async def api_client(session_maker_override) -> AsyncGenerator[AsyncClient]:
     transport = ASGITransport(app=app)
     async with AsyncClient(
         transport=transport,
