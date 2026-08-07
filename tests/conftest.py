@@ -78,12 +78,6 @@ async def session_maker_override(
         def __call__(self):
             return db_session
 
-        async def __aenter__(self):
-            return db_session
-
-        async def __aexit__(self, exc_type, exc_val, exc_tb):
-            await db_session.flush()
-
     app.dependency_overrides[get_session_maker] = SingleSessionMaker
 
     yield
