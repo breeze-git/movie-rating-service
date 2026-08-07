@@ -2,29 +2,31 @@ from uuid import uuid4
 
 from fastapi import status
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions.http import NotEnoughRightsError
 from app.database.models import Movie
 from app.services.movies.exceptions import MovieNotFoundError
 from tests.helpers import assert_error_response, assert_validation_error
+from tests.schemas import MovieDTO
 from tests.urls import urls
 
 
 async def test_delete_movie_success(
     db_session: AsyncSession,
     admin_client: AsyncClient,
-    created_movie: Movie,
+    created_movie_dto: MovieDTO,
 ):
-    movie_id = created_movie.id
-
-    response = await admin_client.delete(urls.delete_movie(movie_id))
+    response = await admin_client.delete(urls.delete_movie(created_movie_dto.id))
 
     assert response.status_code == status.HTTP_204_NO_CONTENT
 
-    db_session.expire(created_movie)
+    db_session.expire_all()
 
-    result = await db_session.get(Movie, movie_id)
+    query = select(Movie).where(Movie.id == created_movie_dto.id)
+
+    result = await db_session.scalar(query)
 
     assert result is None
 
@@ -46,9 +48,9 @@ async def test_delete_movie_not_found_fail(
 
 async def test_delete_not_enough_rights_fail(
     user_client: AsyncClient,
-    created_movie: Movie,
+    created_movie_dto: MovieDTO,
 ):
-    response = await user_client.delete(urls.delete_movie(created_movie.id))
+    response = await user_client.delete(urls.delete_movie(created_movie_dto.id))
 
     assert_error_response(response, status.HTTP_403_FORBIDDEN, NotEnoughRightsError.code)
 

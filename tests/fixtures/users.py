@@ -12,26 +12,29 @@ from app.database.models import Role, User
 from app.main import app
 from app.schemas.auth import Tokens, UserRegister
 from tests.factories.users import UserRegisterFactory
+from tests.schemas import UserDTO
 
 
 @pytest_asyncio.fixture
 async def create_user_in_db(db_session: AsyncSession) -> Callable:
-    async def _create_user(payload: UserRegister, roles: tuple[str] = ("user",)) -> User:
+    async def _create_user(payload: UserRegister, roles: tuple[str] = ("user",)) -> UserDTO:
         hashed_password = get_hash(payload.password).decode("utf-8")
 
         query = select(Role).where(Role.name.in_(roles))
 
         default_roles = (await db_session.scalars(query)).all()
 
-        user = User(
+        db_user = User(
             **payload.model_dump(exclude={"password"}),
             hashed_password=hashed_password,
             roles=default_roles,
         )
 
-        db_session.add(user)
+        db_session.add(db_user)
 
-        await db_session.commit()
+        await db_session.flush()
+
+        user = UserDTO.model_validate(db_user)
 
         return user
 

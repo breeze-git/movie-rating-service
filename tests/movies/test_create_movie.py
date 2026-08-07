@@ -4,10 +4,11 @@ from typing import Any
 import pytest
 from fastapi import status
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions.http import NotEnoughRightsError
-from app.database.models import Director, Movie
+from app.database.models import Movie
 from app.schemas.movies import MovieDetail, MoviePayload
 from app.services.directors.exceptions import DirectorNotFoundError
 from app.services.movies.exceptions import (
@@ -17,15 +18,16 @@ from app.services.movies.exceptions import (
 )
 from tests.factories.movies import MoviePayloadFactory
 from tests.helpers import assert_error_response, assert_validation_error
+from tests.schemas import DirectorDTO
 from tests.urls import urls
 
 
 async def test_create_movie_success(
     admin_client: AsyncClient,
     db_session: AsyncSession,
-    created_director: Director,
+    created_director_dto: DirectorDTO,
 ) -> None:
-    movie_payload = MoviePayloadFactory.build(director_id=created_director.id)
+    movie_payload = MoviePayloadFactory.build(director_id=created_director_dto.id)
 
     response = await admin_client.post(urls.create_movie, json=movie_payload.model_dump(mode="json"))
 
@@ -33,12 +35,12 @@ async def test_create_movie_success(
 
     response_data = MovieDetail.model_validate(response.json()["data"])
 
-    assert response_data.director.id == created_director.id
+    assert response_data.director.id == created_director_dto.id
     assert response_data.description == movie_payload.description
 
-    db_session.expire_all()
+    query = select(Movie).where(Movie.id == response_data.id)
 
-    db_movie = await db_session.get(Movie, response_data.id)
+    db_movie = await db_session.scalar(query)
 
     assert db_movie is not None
     assert db_movie.title == movie_payload.title
@@ -94,12 +96,12 @@ async def test_create_movie_duplicate_fail(
 )
 async def test_create_movie_not_found_genre_ids_country_ids_fails(
     admin_client: AsyncClient,
-    created_director: Director,
+    created_director_dto: DirectorDTO,
     invalid_field: str,
     invalid_value: Any,
     expected_error_code: str,
 ):
-    payload_dict = MoviePayloadFactory.build(director_id=created_director.id).model_dump(mode="json")
+    payload_dict = MoviePayloadFactory.build(director_id=created_director_dto.id).model_dump(mode="json")
 
     payload_dict[invalid_field] = invalid_value
 

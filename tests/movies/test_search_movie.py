@@ -4,24 +4,24 @@ import pytest
 from fastapi import status
 from httpx import AsyncClient
 
-from app.database.models import Director
 from tests.factories.movies import MoviePayloadFactory
 from tests.helpers import assert_validation_error
+from tests.schemas import DirectorDTO
 from tests.urls import urls
 
 
 async def test_search_movies_success(
     api_client: AsyncClient,
     create_movie_in_db: Callable,
-    created_director: Director,
+    created_director_dto: DirectorDTO,
 ):
-    other_movie_payload = MoviePayloadFactory.build(title="Some title", director_id=created_director.id)
+    other_movie_payload = MoviePayloadFactory.build(title="Some title", director_id=created_director_dto.id)
 
     await create_movie_in_db(other_movie_payload)
 
     payload = MoviePayloadFactory.build(
         title="Pirates of the Caribbean: The Curse of the Black Pearl",
-        director_id=created_director.id,
+        director_id=created_director_dto.id,
     )
 
     matching_movie = await create_movie_in_db(payload)

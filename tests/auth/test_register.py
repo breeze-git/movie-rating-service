@@ -34,8 +34,6 @@ async def test_register_success(
     assert user_response.username == payload.username
     assert user_response.email == payload.email
 
-    db_session.expire_all()
-
     query = select(User).where(User.email == payload.email)
 
     created_user = await db_session.scalar(query)

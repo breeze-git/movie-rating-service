@@ -72,9 +72,19 @@ async def db_session(
 
 @pytest_asyncio.fixture
 async def session_maker_override(
-    test_session_maker: async_sessionmaker[AsyncSession],
+    db_session: AsyncSession,
 ) -> AsyncGenerator[None]:
-    app.dependency_overrides[get_session_maker] = lambda: test_session_maker
+    class SingleSessionMaker:
+        def __call__(self):
+            return db_session
+
+        async def __aenter__(self):
+            return db_session
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            await db_session.flush()
+
+    app.dependency_overrides[get_session_maker] = SingleSessionMaker
 
     yield
 

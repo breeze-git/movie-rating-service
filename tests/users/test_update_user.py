@@ -34,8 +34,6 @@ async def test_update_user_success(
 
     response_data = UserBrief.model_validate(raw_json)
 
-    db_session.expire_all()
-
     query = select(User).where(User.id == response_data.id)
 
     db_user = await db_session.scalar(query)
