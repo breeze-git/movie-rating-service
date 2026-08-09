@@ -25,8 +25,19 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      redis:
+        image: redis:7-alpine
+        ports:
+          - "6379:6379"
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
-      DATABASE_URL: postgresql+asyncpg://admin:admin@localhost/movie_rating_test
+      DATABASE_URL: postgresql+asyncpg://admin:admin@localhost:5432/movie_rating_test
+      REDIS_URL: redis://localhost:6379/0
       SECRET_KEY: test_super_secret_key_for_ci_pipeline
       MODE: TEST
       ALGORITHM: HS256
