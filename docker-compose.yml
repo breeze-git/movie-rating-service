@@ -2,12 +2,12 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: movie_rating_dev 
+    container_name: movie_rating_service_dev 
     restart: always
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres_password
-      POSTGRES_DB: movie_rating_dev
+      POSTGRES_DB: movie_rating_service_dev 
     ports:
       - "5432:5432"
     volumes:
@@ -18,16 +18,25 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: movie_rating_service_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
   web:
     build: .
-    container_name: movie_rating_api
+    container_name: movie_rating_service_api
     restart: always
     ports:
       - "8000:8000"
     env_file:
       .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres_password@db:5432/movie_rating_dev
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres_password@db:5432/movie_rating_service_dev
     depends_on:
       db:
         condition: service_healthy
@@ -37,3 +46,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:

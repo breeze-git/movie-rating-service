@@ -3,7 +3,6 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import exists, select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database.models import Permission, Role, RolePermissions, User, UserRoles
@@ -13,9 +12,6 @@ from .base import BaseRepository
 
 class UserRepository(BaseRepository):
     model = User
-
-    def __init__(self, session: AsyncSession):
-        self.session = session
 
     async def get_by_email(self, email: str) -> User | None:
         query = select(User).where(User.email == email)

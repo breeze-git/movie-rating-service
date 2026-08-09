@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import Sequence
 from uuid import UUID
@@ -25,12 +26,20 @@ class UserService:
 
     async def get_user(self, user_id: UUID) -> UserWithReviews:
         async with self.uow:
+            cache_key = f"user:{user_id}"
+
+            cached = await self.uow.redis.get(cache_key)
+            if cached:
+                return UserWithReviews.model_validate(json.loads(cached))
+
             db_user = await self.uow.users.get_by_id_with_relations(user_id)
 
             if db_user is None:
                 raise UserNotFoundError(search_by="id", value=user_id) from None
 
             user = UserWithReviews.model_validate(db_user)
+
+            await self.uow.redis.set(cache_key, user.model_dump_json())
 
             return user
 

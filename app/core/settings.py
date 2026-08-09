@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str = Field(default=...)
+    redis_url: str = Field(default=...)
 
     secret_key: str = Field(default=...)
     algorithm: str = Field(default=...)
