@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from testcontainers.community.postgres import PostgresContainer
+from testcontainers.community.redis import RedisContainer
 
 from alembic import command
 from alembic.config import Config
@@ -23,6 +25,27 @@ pytest_plugins = [
     "tests.fixtures.movies",
     "tests.fixtures.directors",
 ]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def postgres_container():
+    with PostgresContainer("postgres:16-alpine") as postgres:
+        driver_url = postgres.get_connection_url(driver="asyncpg")
+
+        settings.database_url = driver_url
+        yield driver_url
+
+
+@pytest.fixture(scope="session", autouse=True)
+def redis_container():
+    with RedisContainer("redis:7-alpine") as redis:
+        host = redis.get_container_host_ip()
+        port = redis.get_exposed_port(6379)
+
+        redis_url = f"redis://{host}:{port}/0"
+
+        settings.redis_url = redis_url
+        yield redis_url
 
 
 @pytest_asyncio.fixture(scope="session")
