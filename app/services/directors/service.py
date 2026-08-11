@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import Depends
 
+from app.cache.decorators import cached, invalidate_cache
 from app.core.exceptions.repository import RepoUniqueViolationError
 from app.database.models import Director
 from app.database.uow import UnitOfWork
@@ -20,6 +21,7 @@ class DirectorService:
     def __init__(self, uow: UnitOfWork = Depends()):
         self.uow = uow
 
+    @cached(key="director:{director_id}", schema=DirectorDetail)
     async def get_director_by_id(self, director_id: UUID) -> DirectorDetail:
         async with self.uow:
             db_director = await self.uow.directors.get_by_id_with_relations(director_id)
@@ -61,6 +63,7 @@ class DirectorService:
 
             return director
 
+    @invalidate_cache(key="director:{director_id}")
     async def update_director(self, director_id: UUID, dto: DirectorUpdate) -> DirectorBrief:
         async with self.uow:
             db_director = await self.uow.directors.get_by_id(director_id)
@@ -79,6 +82,7 @@ class DirectorService:
 
             return director
 
+    @invalidate_cache(key="director:{director_id}")
     async def remove_director(self, director_id: UUID) -> None:
         async with self.uow:
             result = await self.uow.directors.delete(director_id)

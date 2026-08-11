@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
 setup_logger()
 
 app = FastAPI(
-    title="movie-review-platform-api",
+    title="movie-rating-service-api",
     lifespan=lifespan,
     docs_url="/docs" if settings.show_docs else None,
     redoc_url="/redoc" if settings.show_docs else None,

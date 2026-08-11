@@ -66,35 +66,33 @@ async def get_movies(
 @router.get(
     "/genres",
     summary="List genres",
-    response_model=ResponseEnvelope[CollectionEnvelope[GenreBase]],
+    response_model=ResponseEnvelope[list[GenreBase]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 429),
 )
 async def get_genres(
     request: Request,
-    pagination: PaginationParams = Depends(),
     service: MovieService = Depends(),
 ) -> ResponseEnvelope:
-    genre_collection = await service.get_all_genres(pagination)
+    genre_list = await service.get_all_genres()
 
-    return ResponseEnvelope(data=genre_collection)
+    return ResponseEnvelope(data=genre_list)
 
 
 @router.get(
     "/countries",
     summary="List countries",
-    response_model=ResponseEnvelope[CollectionEnvelope[CountryBase]],
+    response_model=ResponseEnvelope[list[CountryBase]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 429),
 )
 async def get_countries(
     request: Request,
-    pagination: PaginationParams = Depends(),
     service: MovieService = Depends(),
 ) -> ResponseEnvelope:
-    country_collection = await service.get_all_countries(pagination)
+    country_list = await service.get_all_countries()
 
-    return ResponseEnvelope(data=country_collection)
+    return ResponseEnvelope(data=country_list)
 
 
 @router.post(

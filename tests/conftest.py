@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
+from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
@@ -110,12 +111,12 @@ async def session_maker_override(
 
 @pytest_asyncio.fixture
 async def api_client(session_maker_override) -> AsyncGenerator[AsyncClient]:
-    transport = ASGITransport(app=app)
-    async with AsyncClient(
-        transport=transport,
-        base_url="http://127.0.0.1:8000",
-    ) as ac:
-        yield ac
+    async with LifespanManager(app) as manager:
+        async with AsyncClient(
+            transport=ASGITransport(app=manager.app, raise_app_exceptions=True),
+            base_url="http://127.0.0.1:8000",
+        ) as ac:
+            yield ac
 
 
 @pytest_asyncio.fixture

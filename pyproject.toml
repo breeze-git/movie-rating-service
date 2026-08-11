@@ -37,6 +37,7 @@ httpx = "^0.28.1"
 pytest-env = "^1.7.0"
 pre-commit = "^4.6.1"
 testcontainers = "^4.15.0"
+asgi-lifespan = "^2.1.0"
 
 [tool.ruff]
 line-length = 120

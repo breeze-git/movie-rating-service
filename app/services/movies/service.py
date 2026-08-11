@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import Depends
 
+from app.cache.decorators import cached, invalidate_cache
 from app.core.exceptions.repository import RepoUniqueViolationError
 from app.database.models import Country, Genre, Movie
 from app.database.uow import UnitOfWork
@@ -72,6 +73,7 @@ class MovieService:
 
             return movie_collection
 
+    @cached(key="movie:{movie_id}", schema=MovieDetail)
     async def get_movie_by_id(self, movie_id: UUID) -> MovieDetail:
         async with self.uow:
             db_movie = await self.uow.movies.get_by_id_with_relations(movie_id)
@@ -116,6 +118,7 @@ class MovieService:
 
             return movie
 
+    @invalidate_cache(key="movie:{movie_id}")
     async def update_movie(self, movie_id: UUID, dto: MovieUpdate) -> MovieDetail:
         async with self.uow:
             db_movie = await self.uow.movies.get_by_id_with_relations(movie_id)
@@ -148,6 +151,7 @@ class MovieService:
 
             return movie
 
+    @invalidate_cache(key="movie:{movie_id}")
     async def remove_movie(self, movie_id: UUID) -> None:
         async with self.uow:
             result = await self.uow.movies.delete(movie_id)
@@ -160,16 +164,16 @@ class MovieService:
                 extra={"id": movie_id},
             )
 
-    async def get_all_genres(self, pagination: PaginationParams) -> CollectionEnvelope[GenreBase]:
+    @cached(key="genres", schema=list[CountryBase])
+    async def get_all_genres(self) -> list[GenreBase]:
         async with self.uow:
-            genre_collection = await self.uow.movies.get_all_genres(limit=pagination.limit, offset=pagination.offset)
+            genre_list = await self.uow.movies.get_all_genres()
 
-            return genre_collection
+            return genre_list
 
-    async def get_all_countries(self, pagination: PaginationParams) -> CollectionEnvelope[CountryBase]:
+    @cached(key="countries", schema=list[CountryBase])
+    async def get_all_countries(self) -> list[CountryBase]:
         async with self.uow:
-            country_collection = await self.uow.movies.get_all_countries(
-                limit=pagination.limit, offset=pagination.offset
-            )
+            country_list = await self.uow.movies.get_all_countries()
 
-            return country_collection
+            return country_list

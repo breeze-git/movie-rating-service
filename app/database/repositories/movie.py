@@ -149,13 +149,8 @@ class MovieRepository(BaseRepository):
 
         return result.all()
 
-    async def get_all_genres(self, limit: int = 10, offset: int = 0) -> CollectionEnvelope[GenreBase]:
+    async def get_all_genres(self) -> list[GenreBase]:
         query = select(Genre.id, Genre.name)
-
-        count_query = select(func.count()).select_from(query.subquery())
-        total = await self.session.scalar(count_query) or 0
-
-        query = query.limit(limit).offset(offset)
 
         result = await self.session.execute(query)
 
@@ -163,20 +158,10 @@ class MovieRepository(BaseRepository):
 
         genres = [GenreBase.model_validate(row) for row in rows]
 
-        collection = CollectionEnvelope(
-            items=genres,
-            total=total,
-        )
+        return genres
 
-        return collection
-
-    async def get_all_countries(self, limit: int = 10, offset: int = 0) -> CollectionEnvelope[CountryBase]:
+    async def get_all_countries(self) -> list[CountryBase]:
         query = select(Country.id, Country.name)
-
-        count_query = select(func.count()).select_from(query.subquery())
-        total = await self.session.scalar(count_query) or 0
-
-        query = query.limit(limit).offset(offset)
 
         result = await self.session.execute(query)
 
@@ -184,9 +169,4 @@ class MovieRepository(BaseRepository):
 
         countries = [CountryBase.model_validate(row) for row in rows]
 
-        collection = CollectionEnvelope(
-            items=countries,
-            total=total,
-        )
-
-        return collection
+        return countries

@@ -1,9 +1,8 @@
-from secrets import compare_digest
-
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.core.security import REFRESH_TOKENS, create_tokens_pair
+from app.core.exceptions.http import SessionExpiredError
+from app.core.security import create_tokens_pair, get_user_data_by_token
 from app.schemas.auth import RefreshToken, Tokens, UserRegister
 from app.schemas.common import ResponseEnvelope
 from app.schemas.users import UserBrief
@@ -49,7 +48,7 @@ async def login_user(
 ) -> ResponseEnvelope:
     user_id = await service.authenticate_user(email=form_data.username, password=form_data.password)
 
-    tokens_data = create_tokens_pair(user_id)
+    tokens_data = await create_tokens_pair(user_id)
 
     return ResponseEnvelope(data=tokens_data)
 
@@ -67,16 +66,15 @@ Requires a refresh token in the Authorization header.""",
 )
 async def refresh_token(request: Request, token: RefreshToken) -> ResponseEnvelope:
     payload = decode_token_safely(token.refresh_token)
+    user_id = payload["sub"]
 
     verify_claims(payload, req_token_type="refresh")
 
-    user_id = payload["sub"]
+    data = await get_user_data_by_token(token.refresh_token)
 
-    user_token = REFRESH_TOKENS.get(user_id)
+    if data is None or data.get("sub") != user_id:
+        raise SessionExpiredError(token=token.refresh_token)
 
-    if user_token is None or not compare_digest(user_token, token.refresh_token):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from None
-
-    tokens_data = create_tokens_pair(user_id)
+    tokens_data = await create_tokens_pair(user_id)
 
     return ResponseEnvelope(data=tokens_data)
