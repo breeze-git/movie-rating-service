@@ -34,10 +34,15 @@ def app_exception_handler(request: Request, exc: AppError) -> JSONResponse:
     details = schema.model_validate(exc)
     details.status = status_code
 
+    headers = {
+        **getattr(exc, "headers", {}),
+        "Content-Type": "application/problem+json",
+    }
+
     return JSONResponse(
         status_code=status_code,
         content=details.model_dump(mode="json"),
-        headers={"Content-Type": "application/problem+json"},
+        headers=headers,
     )
 
 

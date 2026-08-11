@@ -3,6 +3,10 @@ import logging
 from datetime import datetime
 from logging.config import dictConfig
 
+from app.core.settings import settings
+
+LOG_LEVEL = settings.log_level
+
 # JSONFormatter
 
 
@@ -56,7 +60,7 @@ LOGGING_CONFIG = {
     },
     "loggers": {
         "app": {
-            "level": "DEBUG",
+            "level": LOG_LEVEL,
             "handlers": ["console"],
         },
         "uvicorn": {

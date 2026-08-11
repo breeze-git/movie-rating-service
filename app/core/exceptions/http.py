@@ -4,7 +4,7 @@ from .base import AppError
 
 
 class APIError(AppError):
-    status_code: int
+    status_code: int = 400
 
 
 class RateLimitExceededError(APIError):
@@ -16,7 +16,10 @@ class RateLimitExceededError(APIError):
     def __init__(self, *, limit: str, user_identifier: str | UUID, retry_after: int):
         self.limit = limit
         self.user_identifier = user_identifier
-        self.retry_after = retry_after  # как добавить заголовок в ответ?
+        self.retry_after = retry_after
+        self.headers = {
+            "Retry-After": str(retry_after),
+        }
 
         super().__init__(
             limit=limit,
