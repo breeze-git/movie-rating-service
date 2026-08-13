@@ -1,6 +1,7 @@
 import inspect
 import logging
 from collections.abc import Callable
+from datetime import timedelta
 from functools import wraps
 from typing import Any
 
@@ -21,7 +22,7 @@ def build_cache_key(func: Callable, template: str, *args, **kwargs):
     return cache_key
 
 
-def cached(*, key: str, schema: Any) -> Callable:
+def cached(*, key: str, schema: Any, ttl: int | timedelta | None = None) -> Callable:
     def decorator(func) -> Callable:
         @wraps(func)
         async def wrapper(self, *args, **kwargs) -> BaseModel:
@@ -44,9 +45,8 @@ def cached(*, key: str, schema: Any) -> Callable:
                 return adapter.validate_json(cached)
 
             result = await func(self, *args, **kwargs)
-
             try:
-                await redis_client.set(cache_key, adapter.dump_json(result))
+                await redis_client.set(cache_key, adapter.dump_json(result), ttl)
             except RedisError:
                 logger.warning(
                     "Failed to write cache entry.",

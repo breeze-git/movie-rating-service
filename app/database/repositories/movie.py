@@ -89,6 +89,8 @@ class MovieRepository(BaseRepository):
         collection = CollectionEnvelope(
             items=movies,
             total=total,
+            limit=limit,
+            offset=offset,
         )
 
         return collection

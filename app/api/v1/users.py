@@ -1,12 +1,13 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, status
 
 from app.schemas.common import ResponseEnvelope
-from app.schemas.users import UserBrief, UserDetail, UserUpdate, UserWithReviews
+from app.schemas.users import UserBrief, UserDetail, UserUpdate
 from app.services.users.service import UserService
 
-from .dependencies import IPBasedLimiter, RoleBasedLimiter, get_user_id_from_token
+from .dependencies import get_user_id_from_token
+from .limiters import IPBasedLimiter, RoleBasedLimiter
 from .openapi import errors_model
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -20,7 +21,6 @@ router = APIRouter(prefix="/users", tags=["Users"])
     responses=errors_model(400, 401, 422, 429),
 )
 async def get_profile(
-    request: Request,
     user_id: UUID = Depends(get_user_id_from_token),
     service: UserService = Depends(),
 ) -> ResponseEnvelope:
@@ -32,12 +32,11 @@ async def get_profile(
 @router.get(
     "/{user_id}",
     summary="Get user by ID",
-    response_model=ResponseEnvelope[UserWithReviews],
+    response_model=ResponseEnvelope[UserBrief],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 404, 422, 429),
 )
 async def get_user(
-    request: Request,
     user_id: UUID,
     service: UserService = Depends(),
 ) -> ResponseEnvelope:
@@ -50,12 +49,11 @@ async def get_user(
     "/me",
     name="update_user",
     summary="Update current user",
-    response_model=ResponseEnvelope[UserBrief],
+    response_model=ResponseEnvelope[UserDetail],
     dependencies=[Depends(RoleBasedLimiter)],
     responses=errors_model(400, 401, 409, 422, 429),
 )
 async def patch_user(
-    request: Request,
     payload: UserUpdate,
     user_id: UUID = Depends(get_user_id_from_token),
     service: UserService = Depends(),
@@ -73,7 +71,6 @@ async def patch_user(
     responses=errors_model(400, 401, 422, 429),
 )
 async def delete_user(
-    request: Request,
     user_id: UUID = Depends(get_user_id_from_token),
     service: UserService = Depends(),
 ) -> None:

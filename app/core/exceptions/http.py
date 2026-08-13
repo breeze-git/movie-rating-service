@@ -54,9 +54,6 @@ class InvalidTokenError(APIError):
     code: str = "INVALID_TOKEN"
     status_code: int = 401
 
-    def __init__(self, *, token: str):
-        super().__init__(token=token)
-
 
 class InvalidTokenClaimsError(APIError):
     title: str = "Invalid Token Payload"
@@ -77,6 +74,3 @@ class SessionExpiredError(APIError):
     detail: str = "Your session has expired. Please refresh your token or log in again."
     code: str = "SESSION_EXPIRED"
     status_code: int = 401
-
-    def __init__(self, *, token: str):
-        super().__init__(token=token)

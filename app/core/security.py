@@ -11,11 +11,11 @@ from .settings import settings
 
 
 def get_hash(password: str) -> bytes:
-    bytes = password.encode("utf-8")
+    pass_bytes = password.encode("utf-8")
     salt = bcrypt.gensalt()
-    hash = bcrypt.hashpw(bytes, salt)
+    pass_hash = bcrypt.hashpw(pass_bytes, salt)
 
-    return hash
+    return pass_hash
 
 
 def verify_password(password: str, hashed_password: str):
@@ -59,15 +59,19 @@ async def set_refresh_token(data: dict) -> str:
 
     redis_client = get_redis()
 
-    await redis_client.set(token, json.dumps(data), timedelta(seconds=10))
+    await redis_client.set(token, json.dumps(data), expire_after)
 
     return token
 
 
-async def create_tokens_pair(user_id: UUID) -> dict:
-    user_id_str = str(user_id)
+async def delete_refresh_token(token: str) -> None:
+    redis_client = get_redis()
 
-    data = {"sub": user_id_str}
+    await redis_client.delete(token)
+
+
+async def create_tokens_pair(user_id: UUID | str) -> dict:
+    data = {"sub": str(user_id)}
 
     access_token = set_access_token(data)
     refresh_token = await set_refresh_token(data)

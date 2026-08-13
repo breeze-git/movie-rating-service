@@ -3,9 +3,9 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 
-from app.database.models import Movie, Review
+from app.database.models import Review
 from app.schemas.common import CollectionEnvelope
 from app.schemas.reviews import ReviewDetail, ReviewSortBy
 
@@ -15,6 +15,13 @@ from .base import BaseRepository
 class ReviewRepository(BaseRepository):
     model = Review
 
+    async def is_owner(self, user_id: UUID, review_id: UUID) -> bool:
+        query = select(exists().where(Review.id == review_id, Review.user_id == user_id))
+
+        result = await self.session.scalar(query)
+
+        return bool(result)
+
     async def get_movie_reviews(
         self,
         id: UUID,
@@ -22,12 +29,7 @@ class ReviewRepository(BaseRepository):
         sort_desc: bool = False,
         limit: int = 10,
         offset: int = 0,
-    ) -> CollectionEnvelope[ReviewDetail] | None:
-        movie = await self.session.get(Movie, id)
-
-        if movie is None:
-            return
-
+    ) -> CollectionEnvelope[ReviewDetail]:
         query = select(
             Review.id,
             Review.user_id,
@@ -59,6 +61,8 @@ class ReviewRepository(BaseRepository):
         collection = CollectionEnvelope(
             items=reviews,
             total=total,
+            limit=limit,
+            offset=offset,
         )
 
         return collection

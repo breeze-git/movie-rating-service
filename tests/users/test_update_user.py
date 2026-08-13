@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.models import User
-from app.schemas.users import UserBrief, UserUpdate
+from app.schemas.users import UserDetail, UserUpdate
 from app.services.users.exceptions import UserAlreadyExistsError
 from tests.factories.users import UserRegisterFactory, UserUpdateFactory
 from tests.helpers import assert_error_response, assert_validation_error
@@ -32,7 +32,7 @@ async def test_update_user_success(
     assert "password" not in raw_json
     assert "hashed_password" not in raw_json
 
-    response_data = UserBrief.model_validate(raw_json)
+    response_data = UserDetail.model_validate(raw_json)
 
     query = select(User).where(User.id == response_data.id)
 

@@ -65,7 +65,7 @@ class BaseRepository(Generic[ModelT]):
 
         await self._flush()
 
-    async def exists_by_id(self, entity_id) -> bool:
+    async def exists_by_id(self, entity_id: UUID | int) -> bool:
         stmt = select(exists().where(self.model.id == entity_id))
 
         result = await self._execute(stmt)
@@ -74,7 +74,7 @@ class BaseRepository(Generic[ModelT]):
 
         return existed
 
-    async def delete(self, entity_id) -> Result[Any]:
+    async def delete(self, entity_id: UUID | int) -> Result[Any]:
         stmt = delete(self.model).where(self.model.id == entity_id).returning(self.model.id)
 
         result = await self._execute(stmt)

@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
 from app.api.v1 import v1_router
+from app.api.v1.limiters import limiter
 from app.core.exceptions import register_exception_handlers
 from app.core.logger import setup_logger
 from app.core.settings import settings
@@ -14,6 +15,8 @@ from app.redis import redis_helper
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await redis_helper.init(settings.redis_url)
+
+    limiter.init_storage(redis_client=redis_helper.get_client(), redis_url=settings.redis_url)
 
     yield
 

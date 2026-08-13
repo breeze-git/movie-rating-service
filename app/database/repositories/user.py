@@ -3,7 +3,6 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import exists, select
-from sqlalchemy.orm import selectinload
 
 from app.database.models import Permission, Role, RolePermissions, User, UserRoles
 
@@ -23,20 +22,11 @@ class UserRepository(BaseRepository):
     async def exists_by_email(self, email: str) -> bool:
         query = select(exists().where(User.email == email))
 
-        result = await self._execute(query)
+        result = await self.session.scalar(query)
 
-        existed = result.scalar()
+        return bool(result)
 
-        return bool(existed)
-
-    async def get_by_id_with_relations(self, user_id: UUID) -> User | None:
-        query = select(User).where(User.id == user_id).options(selectinload(User.reviews))
-
-        user = await self.session.scalar(query)
-
-        return user
-
-    async def update(self, user: User, update_data: Mapping[str, Any]):
+    async def update(self, user: User, update_data: Mapping[str, Any]) -> None:
         for key, value in update_data.items():
             setattr(user, key, value)
 

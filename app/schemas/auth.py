@@ -7,10 +7,6 @@ class UserBaseAuth(BaseModel):
     password: ValidPassword = Field(min_length=13, max_length=60)
 
 
-class UserLogin(UserBaseAuth):
-    email: EmailStr = Field(max_length=100)
-
-
 class UserRegister(UserBaseAuth):
     username: NonEmptyString = Field(max_length=50)
     email: EmailStr = Field(max_length=100)

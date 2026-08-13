@@ -1,16 +1,16 @@
-import json
 import logging
 from collections.abc import Sequence
 from uuid import UUID
 
 from fastapi import Depends
 
+from app.cache.decorators import cached
 from app.core.exceptions.repository import RepoUniqueViolationError
 from app.core.security import get_hash, verify_password
 from app.database.models import User
 from app.database.uow import UnitOfWork
 from app.schemas.auth import UserRegister
-from app.schemas.users import UserBrief, UserDetail, UserUpdate, UserWithReviews
+from app.schemas.users import UserBrief, UserDetail, UserUpdate
 from app.services.users.exceptions import (
     InvalidCredentialsError,
     UserAlreadyExistsError,
@@ -24,28 +24,20 @@ class UserService:
     def __init__(self, uow: UnitOfWork = Depends()):
         self.uow = uow
 
-    async def get_user(self, user_id: UUID) -> UserWithReviews:
+    async def get_user(self, user_id: UUID) -> UserBrief:
         async with self.uow:
-            cache_key = f"user:{user_id}"
-
-            cached = await self.uow.redis.get(cache_key)
-            if cached:
-                return UserWithReviews.model_validate(json.loads(cached))
-
-            db_user = await self.uow.users.get_by_id_with_relations(user_id)
+            db_user = await self.uow.users.get_by_id(user_id)
 
             if db_user is None:
                 raise UserNotFoundError(search_by="id", value=user_id) from None
 
-            user = UserWithReviews.model_validate(db_user)
-
-            await self.uow.redis.set(cache_key, user.model_dump_json())
+            user = UserBrief.model_validate(db_user)
 
             return user
 
     async def get_profile(self, user_id: UUID) -> UserDetail:
         async with self.uow:
-            db_user = await self.uow.users.get_by_id_with_relations(user_id)
+            db_user = await self.uow.users.get_by_id(user_id)
 
             if db_user is None:
                 raise UserNotFoundError(search_by="id", value=user_id) from None
@@ -54,7 +46,7 @@ class UserService:
 
             return user
 
-    async def register_user(self, dto: UserRegister) -> UserBrief:
+    async def register_user(self, dto: UserRegister) -> UserDetail:
         async with self.uow:
             if await self.uow.users.exists_by_email(dto.email):
                 raise UserAlreadyExistsError(conflict_reason="email", value=dto.email) from None
@@ -74,7 +66,7 @@ class UserService:
             except RepoUniqueViolationError as e:
                 raise UserAlreadyExistsError(conflict_reason="username", value=dto.username) from e
 
-            user = UserBrief.model_validate(db_user)
+            user = UserDetail.model_validate(db_user)
 
             logger.info(
                 "User registered",
@@ -95,25 +87,27 @@ class UserService:
 
             return db_user.id
 
+    @cached(key="user:{user_id}:roles", schema=Sequence[str], ttl=60)
     async def get_user_roles(self, user_id: UUID) -> Sequence[str]:
         async with self.uow:
             roles = await self.uow.users.get_roles(user_id)
 
             if not roles:
-                raise UserNotFoundError(search_by="id", value=user_id) from None
+                raise RuntimeError(f"User with id {user_id} has no roles.") from None
 
             return roles
 
+    @cached(key="user:{user_id}:permissions", schema=Sequence[str], ttl=60)
     async def get_user_permissions(self, user_id: UUID) -> Sequence[str]:
         async with self.uow:
             perms = await self.uow.users.get_permissions(user_id)
 
             if not perms:
-                raise UserNotFoundError(search_by="id", value=user_id) from None
+                raise RuntimeError(f"User with id {user_id} has no permissions.") from None
 
             return perms
 
-    async def update_user(self, user_id: UUID, dto: UserUpdate) -> UserBrief:
+    async def update_user(self, user_id: UUID, dto: UserUpdate) -> UserDetail:
         async with self.uow:
             db_user = await self.uow.users.get_by_id(user_id)
 
@@ -127,7 +121,7 @@ class UserService:
             except RepoUniqueViolationError as e:
                 raise UserAlreadyExistsError(conflict_reason="username", value=update_data["username"]) from e
 
-            user = UserBrief.model_validate(db_user)
+            user = UserDetail.model_validate(db_user)
 
             return user
 

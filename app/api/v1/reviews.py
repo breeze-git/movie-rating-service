@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, Security, status
+from fastapi import APIRouter, Depends, Security, status
 
 from app.schemas.common import CollectionEnvelope, PaginationParams, ResponseEnvelope
 from app.schemas.reviews import (
@@ -11,12 +11,8 @@ from app.schemas.reviews import (
 )
 from app.services.reviews.service import ReviewService
 
-from .dependencies import (
-    IPBasedLimiter,
-    RoleBasedLimiter,
-    verify_global_permissions,
-    verify_review_permissions,
-)
+from .dependencies import verify_global_permissions, verify_review_permissions
+from .limiters import IPBasedLimiter, RoleBasedLimiter
 from .openapi import errors_model
 
 router = APIRouter(prefix="/reviews", tags=["Reviews"])
@@ -30,7 +26,6 @@ router = APIRouter(prefix="/reviews", tags=["Reviews"])
     responses=errors_model(400, 404, 422, 429),
 )
 async def get_reviews(
-    request: Request,
     movie_id: UUID,
     sort: ReviewSortCriteria = Depends(),
     pagination: PaginationParams = Depends(),
@@ -41,9 +36,6 @@ async def get_reviews(
         sort=sort,
         pagination=pagination,
     )
-
-    review_collection.limit = pagination.limit
-    review_collection.offset = pagination.offset
 
     return ResponseEnvelope(data=review_collection)
 
@@ -58,7 +50,6 @@ async def get_reviews(
     responses=errors_model(400, 401, 403, 404, 409, 422, 429),
 )
 async def post_review(
-    request: Request,
     payload: ReviewPayload,
     movie_id: UUID,
     user_id: UUID = Security(verify_global_permissions, scopes=["reviews:create"]),
@@ -77,7 +68,6 @@ async def post_review(
     responses=errors_model(400, 401, 403, 404, 409, 422, 429),
 )
 async def patch_review(
-    request: Request,
     review_id: UUID,
     payload: ReviewUpdate,
     user_id: UUID = Security(verify_review_permissions, scopes=["reviews:update"]),
@@ -96,7 +86,6 @@ async def patch_review(
     responses=errors_model(400, 401, 403, 404, 422, 429),
 )
 async def delete_review(
-    request: Request,
     review_id: UUID,
     user_id: UUID = Security(verify_review_permissions, scopes=["reviews:delete"]),
     review_service: ReviewService = Depends(),

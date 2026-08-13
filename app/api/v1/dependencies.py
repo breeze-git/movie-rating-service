@@ -1,18 +1,14 @@
 from collections.abc import Sequence
-from secrets import compare_digest
 from uuid import UUID
 
 import jwt
-from fastapi import Depends, Request
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer, SecurityScopes
-from limits import parse, strategies
-from limits.storage import MemoryStorage
 
 from app.core.exceptions.http import (
     InvalidTokenClaimsError,
     InvalidTokenError,
     NotEnoughRightsError,
-    RateLimitExceededError,
     SessionExpiredError,
 )
 from app.core.settings import settings
@@ -20,9 +16,6 @@ from app.services.reviews.service import ReviewService
 from app.services.users.service import UserService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
-
-storage = MemoryStorage()
-moving_window = strategies.MovingWindowRateLimiter(storage)
 
 
 async def get_current_user_claims(token: str = Depends(oauth2_scheme)) -> dict:
@@ -46,7 +39,7 @@ def verify_claims(payload: dict, req_token_type: str):
 
 
 def get_user_id_from_token(payload: dict = Depends(get_current_user_claims)) -> UUID:
-    user_id = payload["sub"]
+    user_id = UUID(payload["sub"])
 
     return user_id
 
@@ -58,11 +51,9 @@ async def verify_review_permissions(
     user_service: UserService = Depends(),
     review_service: ReviewService = Depends(),
 ) -> UUID:
-    user_id = payload["sub"]
+    user_id = UUID(payload["sub"])
 
-    review = await review_service.get_review_by_id(review_id)
-
-    if compare_digest(str(review.user_id), user_id):
+    if await review_service.is_review_owner(user_id, review_id):
         return user_id
 
     required_scopes = security_scopes.scopes
@@ -112,64 +103,12 @@ def decode_token_safely(token: str):
 
         return payload
     except jwt.ExpiredSignatureError:
-        raise SessionExpiredError(token=token) from None
+        raise SessionExpiredError() from None
     except jwt.InvalidTokenError:
-        raise InvalidTokenError(token=token) from None
+        raise InvalidTokenError() from None
 
 
 def get_token_payload(token: str) -> dict:
     payload = jwt.decode(token, settings.secret_key, algorithms=settings.algorithm)
 
     return payload
-
-
-# LIMITERS
-
-
-class RoleBasedLimiter:
-    async def __call__(
-        self,
-        request: Request,
-        payload: dict = Depends(get_current_user_claims),
-        user_service: UserService = Depends(),
-    ) -> None:
-        if settings.mode == "TEST":
-            return
-
-        user_id = payload["sub"]
-        user_roles = await user_service.get_user_roles(user_id)
-
-        user_identifier = f"user:{user_id}"
-        limit = "20/minute"
-
-        if "admin" in user_roles:
-            limit = "1000/minute"
-
-        endpoint_name = request.url.path
-
-        check_limit(user_identifier, endpoint_name, limit)
-
-
-class IPBasedLimiter:
-    def __init__(self, limit: str):
-        self.limit: str = limit
-
-    def __call__(self, request: Request):
-        user_identifier = request.client.host  # type: ignore
-        endpoint_name = request.url.path
-
-        check_limit(user_identifier, endpoint_name, self.limit)
-
-
-def check_limit(user_identifier: str, endpoint_name: str, limit: str) -> None:
-    if settings.mode == "TEST":
-        return
-
-    limit_item = parse(limit)
-
-    if not moving_window.hit(limit_item, user_identifier, endpoint_name):
-        raise RateLimitExceededError(
-            limit=limit,
-            user_identifier=user_identifier,
-            retry_after=limit_item.get_expiry(),
-        ) from None

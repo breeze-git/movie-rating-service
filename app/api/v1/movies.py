@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, Security, status
+from fastapi import APIRouter, Depends, Query, Security, status
 
 from app.schemas.common import CollectionEnvelope, PaginationParams, ResponseEnvelope
 from app.schemas.movies import (
@@ -16,7 +16,8 @@ from app.schemas.movies import (
 )
 from app.services.movies.service import MovieService
 
-from .dependencies import IPBasedLimiter, RoleBasedLimiter, verify_global_permissions
+from .dependencies import verify_global_permissions
+from .limiters import IPBasedLimiter, RoleBasedLimiter
 from .openapi import errors_model
 
 router = APIRouter(prefix="/movies", tags=["Movies"])
@@ -35,7 +36,6 @@ Supports pagination with `limit` and `offset`.""",
     responses=errors_model(400, 422, 429),
 )
 async def get_movies(
-    request: Request,
     search: str | None = Query(default=None, max_length=100),
     country_ids: Sequence[int] | None = Query(default=None, max_length=20),
     genre_ids: Sequence[int] | None = Query(default=None, max_length=20),
@@ -57,9 +57,6 @@ async def get_movies(
         pagination=pagination,
     )
 
-    movie_collection.limit = pagination.limit
-    movie_collection.offset = pagination.offset
-
     return ResponseEnvelope(data=movie_collection)
 
 
@@ -71,7 +68,6 @@ async def get_movies(
     responses=errors_model(400, 429),
 )
 async def get_genres(
-    request: Request,
     service: MovieService = Depends(),
 ) -> ResponseEnvelope:
     genre_list = await service.get_all_genres()
@@ -87,7 +83,6 @@ async def get_genres(
     responses=errors_model(400, 429),
 )
 async def get_countries(
-    request: Request,
     service: MovieService = Depends(),
 ) -> ResponseEnvelope:
     country_list = await service.get_all_countries()
@@ -106,7 +101,6 @@ async def get_countries(
     responses=errors_model(400, 401, 403, 404, 409, 422, 429),
 )
 async def post_movie(
-    request: Request,
     payload: MoviePayload,
     user_id: UUID = Security(verify_global_permissions, scopes=["movies:create"]),
     service: MovieService = Depends(),
@@ -124,7 +118,6 @@ async def post_movie(
     responses=errors_model(400, 404, 422, 429),
 )
 async def get_movie(
-    request: Request,
     movie_id: UUID,
     service: MovieService = Depends(),
 ) -> ResponseEnvelope:
@@ -142,7 +135,6 @@ async def get_movie(
     responses=errors_model(400, 401, 403, 404, 409, 422, 429),
 )
 async def patch_movie(
-    request: Request,
     movie_id: UUID,
     payload: MovieUpdate,
     user_id: UUID = Security(verify_global_permissions, scopes=["movies:update"]),
@@ -163,7 +155,6 @@ async def patch_movie(
     responses=errors_model(400, 401, 403, 404, 422, 429),
 )
 async def delete_movie(
-    request: Request,
     movie_id: UUID,
     user_id: UUID = Security(verify_global_permissions, scopes=["movies:delete"]),
     service: MovieService = Depends(),

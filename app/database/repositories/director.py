@@ -41,6 +41,8 @@ class DirectorRepository(BaseRepository):
         collection = CollectionEnvelope(
             items=directors,
             total=total,
+            limit=limit,
+            offset=offset,
         )
 
         return collection

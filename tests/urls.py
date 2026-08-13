@@ -8,6 +8,7 @@ from app.main import app
 class URLPaths:
     register_user: str = app.url_path_for("register_user")
     login_user: str = app.url_path_for("login_user")
+    logout_user: str = app.url_path_for("logout_user")
     update_user: str = app.url_path_for("update_user")
     refresh_token: str = app.url_path_for("refresh_token")
     create_movie: str = app.url_path_for("create_movie")

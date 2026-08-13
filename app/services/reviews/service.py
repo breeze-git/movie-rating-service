@@ -27,29 +27,26 @@ class ReviewService:
     def __init__(self, uow: UnitOfWork = Depends()):
         self.uow = uow
 
+    async def is_review_owner(self, user_id: UUID, review_id: UUID) -> bool:
+        async with self.uow:
+            existed = await self.uow.reviews.is_owner(user_id, review_id)
+
+            return existed
+
     async def get_movie_reviews(
         self, movie_id: UUID, sort: ReviewSortCriteria, pagination: PaginationParams
     ) -> CollectionEnvelope[ReviewDetail]:
         async with self.uow:
+            if not await self.uow.movies.exists_by_id(movie_id):
+                raise MovieNotFoundError(movie_id) from None
+
             review_collection = await self.uow.reviews.get_movie_reviews(
                 movie_id,
                 **sort.model_dump(),
                 **pagination.model_dump(),
             )
 
-            if review_collection is None:
-                raise MovieNotFoundError(movie_id) from None
-
             return review_collection
-
-    async def get_review_by_id(self, review_id: UUID) -> Review:
-        async with self.uow:
-            db_review = await self.uow.reviews.get_by_id(review_id)
-
-            if db_review is None:
-                raise ReviewNotFoundError(review_id) from None
-
-            return db_review
 
     async def create_review(self, movie_id: UUID, user_id: UUID, dto: ReviewPayload) -> ReviewDetail:
         async with self.uow:

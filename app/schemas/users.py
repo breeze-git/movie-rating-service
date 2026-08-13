@@ -4,8 +4,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.validators import NonEmptyString
 
-from .reviews import ReviewDetail
-
 
 class UserBase(BaseModel):
     username: str
@@ -13,21 +11,13 @@ class UserBase(BaseModel):
 
 class UserBrief(UserBase):
     id: UUID
-    first_name: str | None
-    last_name: str | None
     email: str
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class UserWithReviews(UserBase):
+class UserDetail(UserBase):
     id: UUID
-    reviews: list[ReviewDetail]
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class UserDetail(UserWithReviews):
     first_name: str | None
     last_name: str | None
     email: str

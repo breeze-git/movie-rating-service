@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import verify_password
 from app.database.models import User
 from app.schemas.auth import UserRegister
-from app.schemas.users import UserBrief
+from app.schemas.users import UserDetail
 from app.services.users.exceptions import UserAlreadyExistsError
 from tests.factories.users import UserRegisterFactory
 from tests.helpers import assert_error_response, assert_validation_error
@@ -29,7 +29,7 @@ async def test_register_success(
     assert "password" not in raw_json
     assert "hashed_password" not in raw_json
 
-    user_response = UserBrief.model_validate(raw_json)
+    user_response = UserDetail.model_validate(raw_json)
 
     assert user_response.username == payload.username
     assert user_response.email == payload.email
