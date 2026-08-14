@@ -30,7 +30,7 @@ services:
   web:
     build: .
     container_name: movie_rating_service_api
-    restart: always
+    restart: no
     ports:
       - "8000:8000"
     env_file:

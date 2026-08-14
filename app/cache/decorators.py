@@ -23,12 +23,12 @@ def build_cache_key(func: Callable, template: str, *args, **kwargs):
 
 
 def cached(*, key: str, schema: Any, ttl: int | timedelta | None = None) -> Callable:
+    adapter = TypeAdapter(schema)
+
     def decorator(func) -> Callable:
         @wraps(func)
-        async def wrapper(self, *args, **kwargs) -> BaseModel:
+        async def wrapper(self, *args, **kwargs) -> Any:
             cache_key = build_cache_key(func, key, *args, **kwargs)
-
-            adapter = TypeAdapter(schema)
 
             redis_client = get_redis()
 

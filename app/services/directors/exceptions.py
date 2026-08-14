@@ -11,3 +11,9 @@ class DirectorAlreadyExistsError(AlreadyExistsError):
     title: str = "Director Already Exists"
     detail: str = "Director with the same name and date of birth already exists"
     code: str = "DIRECTOR_ALREADY_EXISTS"
+
+
+class DirectorHasMovieError:
+    title: str = "Director Has Movie"
+    detail: str = "It is not possible to delete a director while he has movie."
+    code: str = "DIRECTOR_HAS_MOVIE"

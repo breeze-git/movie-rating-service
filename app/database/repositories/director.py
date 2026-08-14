@@ -1,9 +1,7 @@
 from collections.abc import Mapping
 from typing import Any
-from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
 
 from app.database.models import Director
 from app.schemas.common import CollectionEnvelope, DirectorBrief
@@ -30,6 +28,8 @@ class DirectorRepository(BaseRepository):
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.session.scalar(count_query) or 0
 
+        query = query.order_by(Director.last_name, Director.first_name, Director.id)
+
         query = query.limit(limit).offset(offset)
 
         result = await self.session.execute(query)
@@ -46,13 +46,6 @@ class DirectorRepository(BaseRepository):
         )
 
         return collection
-
-    async def get_by_id_with_relations(self, director_id: UUID) -> Director | None:
-        query = select(Director).where(Director.id == director_id).options(selectinload(Director.movies))
-
-        director = await self.session.scalar(query)
-
-        return director
 
     async def update(self, director: Director, update_data: Mapping[str, Any]):
         for key, value in update_data.items():

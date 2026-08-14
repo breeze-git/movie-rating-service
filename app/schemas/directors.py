@@ -4,8 +4,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.validators import NonEmptyString, Over7YearsOld
 
-from .common import MovieShort
-
 
 class DirectorBase(BaseModel):
     first_name: NonEmptyString = Field(max_length=50)
@@ -15,7 +13,6 @@ class DirectorBase(BaseModel):
 
 class DirectorDetail(DirectorBase):
     id: UUID
-    movies: list[MovieShort]
 
     model_config = ConfigDict(from_attributes=True)
 

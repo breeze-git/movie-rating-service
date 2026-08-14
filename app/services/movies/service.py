@@ -35,28 +35,26 @@ class MovieService:
         self.uow = uow
 
     async def _get_validated_countries(self, country_ids: Sequence[int]) -> Sequence[Country]:
-        async with self.uow:
-            if not country_ids:
-                return []
+        if not country_ids:
+            return []
 
-            countries = await self.uow.movies.get_countries_by_id(country_ids)
+        countries = await self.uow.movies.get_countries_by_id(country_ids)
 
-            if len(countries) < len(country_ids):
-                raise CountriesNotFoundError(country_ids) from None
+        if len(countries) < len(set(country_ids)):
+            raise CountriesNotFoundError(country_ids) from None
 
-            return countries
+        return countries
 
     async def _get_validated_genres(self, genre_ids: Sequence[int]) -> Sequence[Genre]:
-        async with self.uow:
-            if not genre_ids:
-                return []
+        if not genre_ids:
+            return []
 
-            genres = await self.uow.movies.get_genres_by_id(genre_ids)
+        genres = await self.uow.movies.get_genres_by_id(genre_ids)
 
-            if len(genres) < len(genre_ids):
-                raise GenresNotFoundError(genre_ids) from None
+        if len(genres) < len(set(genre_ids)):
+            raise GenresNotFoundError(genre_ids) from None
 
-            return genres
+        return genres
 
     async def get_movies(
         self,
@@ -73,7 +71,7 @@ class MovieService:
 
             return movie_collection
 
-    @cached(key="movie:{movie_id}", schema=MovieDetail)
+    @cached(key="movie:{movie_id}", schema=MovieDetail, ttl=3600)
     async def get_movie_by_id(self, movie_id: UUID) -> MovieDetail:
         async with self.uow:
             db_movie = await self.uow.movies.get_by_id_with_relations(movie_id)
@@ -164,7 +162,7 @@ class MovieService:
                 extra={"id": movie_id},
             )
 
-    @cached(key="genres", schema=list[CountryBase])
+    @cached(key="genres", schema=list[GenreBase])
     async def get_all_genres(self) -> list[GenreBase]:
         async with self.uow:
             genre_list = await self.uow.movies.get_all_genres()

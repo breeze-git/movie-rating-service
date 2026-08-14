@@ -2,11 +2,19 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.engine.row import RowMapping
 from sqlalchemy.orm import selectinload
 
-from app.database.models import Country, Director, Genre, Movie, Review
+from app.database.models import (
+    Country,
+    CountryMovies,
+    Director,
+    Genre,
+    GenreMovies,
+    Movie,
+    Review,
+)
 from app.schemas.common import CollectionEnvelope, DirectorBrief
 from app.schemas.movies import CountryBase, GenreBase, MovieBrief, MovieSortBy
 
@@ -59,14 +67,28 @@ class MovieRepository(BaseRepository):
                     func.concat(Director.first_name, " ", Director.last_name).ilike(f"%{search}%"),
                 )
             )
-        if genre_ids:
-            query = query.join(Movie.genres).where(Genre.id.in_(genre_ids))
-        if country_ids:
-            query = query.join(Movie.countries).where(Country.id.in_(country_ids))
-        if director_ids:
-            query = query.where(Director.id.in_(director_ids))
 
-        query = query.group_by(Movie.id, Director.id)
+        if genre_ids:
+            query = query.where(
+                exists().where(
+                    GenreMovies.movie_id == Movie.id,
+                    GenreMovies.genre_id.in_(genre_ids),
+                )
+            )
+
+        if country_ids:
+            query = query.where(
+                exists().where(
+                    CountryMovies.movie_id == Movie.id,
+                    CountryMovies.country_id.in_(country_ids),
+                )
+            )
+
+        if director_ids:
+            query = query.where(Movie.director_id.in_(director_ids))
+
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await self.session.scalar(count_query) or 0
 
         sort_column = getattr(Movie, sort_by.value)
 
@@ -74,9 +96,6 @@ class MovieRepository(BaseRepository):
             query = query.order_by(sort_column.desc())
         else:
             query = query.order_by(sort_column.asc())
-
-        count_query = select(func.count()).select_from(query.subquery())
-        total = await self.session.scalar(count_query) or 0
 
         query = query.limit(limit).offset(offset)
 

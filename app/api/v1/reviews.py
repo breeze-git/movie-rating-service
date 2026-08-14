@@ -25,7 +25,7 @@ router = APIRouter(prefix="/reviews", tags=["Reviews"])
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
     responses=errors_model(400, 404, 422, 429),
 )
-async def get_reviews(
+async def get_movie_reviews(
     movie_id: UUID,
     sort: ReviewSortCriteria = Depends(),
     pagination: PaginationParams = Depends(),
@@ -33,6 +33,28 @@ async def get_reviews(
 ) -> ResponseEnvelope:
     review_collection = await service.get_movie_reviews(
         movie_id,
+        sort=sort,
+        pagination=pagination,
+    )
+
+    return ResponseEnvelope(data=review_collection)
+
+
+@router.get(
+    "/{user_id}",
+    summary="List reviews",
+    response_model=ResponseEnvelope[CollectionEnvelope[ReviewDetail]],
+    dependencies=[Depends(IPBasedLimiter("5/minute"))],
+    responses=errors_model(400, 404, 422, 429),
+)
+async def get_user_reviews(
+    user_id: UUID,
+    sort: ReviewSortCriteria = Depends(),
+    pagination: PaginationParams = Depends(),
+    service: ReviewService = Depends(),
+) -> ResponseEnvelope:
+    review_collection = await service.get_movie_reviews(
+        user_id,
         sort=sort,
         pagination=pagination,
     )

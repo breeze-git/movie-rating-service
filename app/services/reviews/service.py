@@ -48,6 +48,21 @@ class ReviewService:
 
             return review_collection
 
+    async def get_user_reviews(
+        self, user_id: UUID, sort: ReviewSortCriteria, pagination: PaginationParams
+    ) -> CollectionEnvelope[ReviewDetail]:
+        async with self.uow:
+            if not await self.uow.users.exists_by_id(user_id):
+                raise MovieNotFoundError(user_id) from None
+
+            review_collection = await self.uow.reviews.get_movie_reviews(
+                user_id,
+                **sort.model_dump(),
+                **pagination.model_dump(),
+            )
+
+            return review_collection
+
     async def create_review(self, movie_id: UUID, user_id: UUID, dto: ReviewPayload) -> ReviewDetail:
         async with self.uow:
             if not await self.uow.users.exists_by_id(user_id):
@@ -101,8 +116,12 @@ class ReviewService:
         async with self.uow:
             result = await self.uow.reviews.delete(review_id)
 
-            if not result.scalar():
+            deleted_review = result.first()
+
+            if deleted_review is None:
                 raise ReviewNotFoundError(review_id) from None
+
+            await self.uow.movies.update_rating(deleted_review.movie_id)
 
             logger.info(
                 "Review deleted",

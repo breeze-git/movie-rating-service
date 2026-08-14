@@ -21,10 +21,10 @@ class DirectorService:
     def __init__(self, uow: UnitOfWork = Depends()):
         self.uow = uow
 
-    @cached(key="director:{director_id}", schema=DirectorDetail)
+    @cached(key="director:{director_id}", schema=DirectorDetail, ttl=3600)
     async def get_director_by_id(self, director_id: UUID) -> DirectorDetail:
         async with self.uow:
-            db_director = await self.uow.directors.get_by_id_with_relations(director_id)
+            db_director = await self.uow.directors.get_by_id(director_id)
 
             if db_director is None:
                 raise DirectorNotFoundError(director_id) from None
