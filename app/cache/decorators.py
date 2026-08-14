@@ -5,7 +5,7 @@ from datetime import timedelta
 from functools import wraps
 from typing import Any
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import TypeAdapter
 from redis import RedisError
 
 from app.redis import get_redis
@@ -63,23 +63,27 @@ def cached(*, key: str, schema: Any, ttl: int | timedelta | None = None) -> Call
 def invalidate_cache(*, key: str) -> Callable:
     def decorator(func) -> Callable:
         @wraps(func)
-        async def wrapper(self, *args, **kwargs) -> BaseModel:
+        async def wrapper(self, *args, **kwargs) -> Any:
             result = await func(self, *args, **kwargs)
 
             cache_key = build_cache_key(func, key, *args, **kwargs)
 
-            redis_client = get_redis()
-
-            try:
-                await redis_client.delete(cache_key)
-            except RedisError:
-                logger.warning(
-                    "Failed to delete cache entry.",
-                    exc_info=True,
-                )
+            await invalidate_cache_key(key=cache_key)
 
             return result
 
         return wrapper
 
     return decorator
+
+
+async def invalidate_cache_key(*, key: str) -> None:
+    redis_client = get_redis()
+
+    try:
+        await redis_client.delete(key)
+    except RedisError:
+        logger.warning(
+            "Failed to delete cache entry.",
+            exc_info=True,
+        )

@@ -19,7 +19,7 @@ router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
 
 @router.get(
-    "movies/{movie_id}",
+    "/movies/{movie_id}",
     summary="List reviews",
     response_model=ResponseEnvelope[CollectionEnvelope[ReviewDetail]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
@@ -41,7 +41,7 @@ async def get_movie_reviews(
 
 
 @router.get(
-    "users/{user_id}",
+    "/users/{user_id}",
     summary="List reviews",
     response_model=ResponseEnvelope[CollectionEnvelope[ReviewDetail]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],

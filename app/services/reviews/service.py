@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import Depends
 
-from app.cache.decorators import invalidate_cache
+from app.cache.decorators import invalidate_cache, invalidate_cache_key
 from app.core.exceptions.repository import RepoUniqueViolationError
 from app.database.models import Review
 from app.database.uow import UnitOfWork
@@ -98,7 +98,6 @@ class ReviewService:
 
             return review
 
-    @invalidate_cache(key="movie:{movie_id}")
     async def update_review(self, review_id: UUID, dto: ReviewUpdate) -> ReviewDetail:
         async with self.uow:
             db_review = await self.uow.reviews.get_by_id(review_id)
@@ -115,9 +114,10 @@ class ReviewService:
 
             review = ReviewDetail.model_validate(db_review)
 
-            return review
+        await invalidate_cache_key(key=f"movie:{db_review.movie_id}")
 
-    @invalidate_cache(key="movie:{movie_id}")
+        return review
+
     async def remove_review(self, review_id: UUID) -> None:
         async with self.uow:
             result = await self.uow.reviews.delete(review_id)
@@ -133,3 +133,5 @@ class ReviewService:
                 "Review deleted",
                 extra={"id": review_id},
             )
+
+        await invalidate_cache_key(key=f"movie:{deleted_review.movie_id}")
