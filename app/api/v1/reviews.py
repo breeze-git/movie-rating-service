@@ -19,7 +19,7 @@ router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
 
 @router.get(
-    "/{movie_id}",
+    "movies/{movie_id}",
     summary="List reviews",
     response_model=ResponseEnvelope[CollectionEnvelope[ReviewDetail]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
@@ -41,7 +41,7 @@ async def get_movie_reviews(
 
 
 @router.get(
-    "/{user_id}",
+    "users/{user_id}",
     summary="List reviews",
     response_model=ResponseEnvelope[CollectionEnvelope[ReviewDetail]],
     dependencies=[Depends(IPBasedLimiter("5/minute"))],
@@ -53,7 +53,7 @@ async def get_user_reviews(
     pagination: PaginationParams = Depends(),
     service: ReviewService = Depends(),
 ) -> ResponseEnvelope:
-    review_collection = await service.get_movie_reviews(
+    review_collection = await service.get_user_reviews(
         user_id,
         sort=sort,
         pagination=pagination,

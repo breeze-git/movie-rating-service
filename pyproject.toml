@@ -75,6 +75,9 @@ env = [
     "DATABASE_URL=postgresql+asyncpg://postgres:postgres_password@localhost:5432/movie_rating_service_test",
 	"REDIS_URL=redis://localhost:6379/0",
 	"MODE=TEST",
+	"SECRET_KEY=test-secret",
+	"ALGORITHM=HS256",
+	"LOG_LEVEL=INFO",
 ]
 
 

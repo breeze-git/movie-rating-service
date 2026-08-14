@@ -14,7 +14,7 @@ class ReviewPayload(BaseModel):
 
 class ReviewUpdate(BaseModel):
     message: NonEmptyString | None = Field(default=None, min_length=10, max_length=400)
-    rating: int | None = Field(ge=1, le=10)
+    rating: int | None = Field(default=None, ge=1, le=10)
 
 
 class ReviewDetail(BaseModel):

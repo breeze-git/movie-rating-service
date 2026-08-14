@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import Depends
 
+from app.cache.decorators import invalidate_cache
 from app.core.exceptions.repository import RepoUniqueViolationError
 from app.database.models import Review
 from app.database.uow import UnitOfWork
@@ -53,9 +54,9 @@ class ReviewService:
     ) -> CollectionEnvelope[ReviewDetail]:
         async with self.uow:
             if not await self.uow.users.exists_by_id(user_id):
-                raise MovieNotFoundError(user_id) from None
+                raise UserNotFoundError(search_by="id", value=user_id) from None
 
-            review_collection = await self.uow.reviews.get_movie_reviews(
+            review_collection = await self.uow.reviews.get_user_reviews(
                 user_id,
                 **sort.model_dump(),
                 **pagination.model_dump(),
@@ -63,6 +64,7 @@ class ReviewService:
 
             return review_collection
 
+    @invalidate_cache(key="movie:{movie_id}")
     async def create_review(self, movie_id: UUID, user_id: UUID, dto: ReviewPayload) -> ReviewDetail:
         async with self.uow:
             if not await self.uow.users.exists_by_id(user_id):
@@ -84,7 +86,8 @@ class ReviewService:
                     conflict_value={"user_id": user_id, "movie_id": movie_id},
                 ) from e
 
-            await self.uow.movies.update_rating(movie_id)
+            if dto.rating is not None:
+                await self.uow.movies.update_rating(movie_id)
 
             review = ReviewDetail.model_validate(db_review)
 
@@ -95,6 +98,7 @@ class ReviewService:
 
             return review
 
+    @invalidate_cache(key="movie:{movie_id}")
     async def update_review(self, review_id: UUID, dto: ReviewUpdate) -> ReviewDetail:
         async with self.uow:
             db_review = await self.uow.reviews.get_by_id(review_id)
@@ -106,12 +110,14 @@ class ReviewService:
 
             await self.uow.reviews.update(db_review, update_data)
 
-            await self.uow.movies.update_rating(db_review.movie_id)
+            if "rating" in update_data:
+                await self.uow.movies.update_rating(db_review.movie_id)
 
             review = ReviewDetail.model_validate(db_review)
 
             return review
 
+    @invalidate_cache(key="movie:{movie_id}")
     async def remove_review(self, review_id: UUID) -> None:
         async with self.uow:
             result = await self.uow.reviews.delete(review_id)

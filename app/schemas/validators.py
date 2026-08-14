@@ -43,7 +43,7 @@ def _validate_age_limit(min_age: int) -> Callable:
 def _validate_release_year(release_year: int) -> int:
     year = date.today().year
 
-    if release_year >= year:
+    if release_year > year:
         raise ValueError("The year must be prior or equal to the current year.")
 
     return release_year

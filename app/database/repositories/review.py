@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -89,7 +89,7 @@ class ReviewRepository(BaseRepository):
         limit: int = 10,
         offset: int = 0,
     ) -> CollectionEnvelope[ReviewDetail]:
-        condition = Review.movie_id == user_id
+        condition = Review.user_id == user_id
 
         collection = await self._get_reviews(condition, sort_by, sort_desc, limit, offset)
 
@@ -99,7 +99,7 @@ class ReviewRepository(BaseRepository):
         for key, value in update_data.items():
             setattr(review, key, value)
 
-        review.updated_at = datetime.now()
+        review.updated_at = datetime.now(UTC)
 
         await self._flush()
 
